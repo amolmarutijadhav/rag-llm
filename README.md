@@ -7,9 +7,10 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 - **Document Upload**: Support for PDF, TXT, and DOCX files
 - **Text Input**: Add raw text to the knowledge base
 - **Question Answering**: Ask questions and get AI-generated answers
-- **Vector Search**: Semantic search using Qdrant Cloud
+- **Vector Search**: Semantic search using Qdrant Cloud with robust field handling
 - **RESTful API**: Clean, documented API endpoints
 - **Auto-generated Docs**: Interactive API documentation
+- **Externalized APIs**: Complete URL configuration for all external services
 
 ## 📋 Prerequisites
 
@@ -70,14 +71,18 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 Edit `src/config.py` or set environment variables:
 
 ```python
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_API_BASE=https://api.openai.com/v1  # Custom LLM endpoint URL for your organization
+# External API Endpoints - Complete URLs (no path appending)
+EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
+VECTOR_COLLECTION_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents
+VECTOR_INSERT_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points
+VECTOR_SEARCH_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/search
+LLM_API_URL=https://api.openai.com/v1/chat/completions
 
-# Vector Database Configuration - Qdrant Cloud
-QDRANT_HOST=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io
-QDRANT_PORT=6333
+# API Authentication
+OPENAI_API_KEY=your_openai_api_key_here
 QDRANT_API_KEY=your_qdrant_api_key_here
+
+# Vector Database Configuration
 QDRANT_COLLECTION_NAME=documents
 
 # Application Configuration
@@ -93,6 +98,10 @@ SUPPORTED_FORMATS=[".pdf", ".txt", ".docx"]
 CHUNK_SIZE=1000
 CHUNK_OVERLAP=200
 TOP_K_RESULTS=3
+
+# HTTP Configuration
+REQUEST_TIMEOUT=30
+MAX_RETRIES=3
 ```
 
 ## 📖 Usage Examples
@@ -132,12 +141,13 @@ curl -X GET "http://localhost:8000/stats"
 rag-llm/
 ├── src/
 │   ├── __init__.py
-│   ├── config.py          # Configuration management
-│   ├── document_loader.py # Document processing
-│   ├── vector_store.py    # Qdrant vector database operations
-│   ├── rag_service.py     # Main RAG orchestration
-│   ├── models.py          # Pydantic models
-│   └── main.py           # FastAPI application
+│   ├── config.py              # Configuration management with externalized APIs
+│   ├── external_api_service.py # External API calls with complete URLs
+│   ├── document_loader.py     # Document processing
+│   ├── vector_store.py        # Vector database operations with robust field handling
+│   ├── rag_service.py         # Main RAG orchestration using external APIs
+│   ├── models.py              # Pydantic models
+│   └── main.py               # FastAPI application
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py        # Test configuration and fixtures
@@ -149,6 +159,8 @@ rag-llm/
 ├── run.py               # Application runner
 ├── run_tests.py         # Test runner script
 ├── pytest.ini          # Pytest configuration
+├── test_apis.py         # API testing script
+├── debug_search.py      # Debug script for search functionality
 └── README.md            # This file
 ```
 
@@ -180,11 +192,22 @@ rag-llm/
 - **File Size Limit**: 10MB per upload
 - **Supported Formats**: PDF, TXT, DOCX
 
-### LLM Configuration
-The API supports custom LLM endpoints through the `OPENAI_API_BASE` environment variable:
-- **Default**: Uses standard OpenAI API (`https://api.openai.com/v1`)
-- **Custom**: Point to your organization's LLM endpoint
-- **Compatibility**: Works with any OpenAI-compatible API endpoint
+### External API Configuration
+The API now uses completely externalized API endpoints:
+- **Embedding API**: `EMBEDDING_API_URL` - Complete URL for text embeddings
+- **Vector Collection API**: `VECTOR_COLLECTION_URL` - Complete URL for collection management
+- **Vector Insert API**: `VECTOR_INSERT_API_URL` - Complete URL for inserting vectors
+- **Vector Search API**: `VECTOR_SEARCH_API_URL` - Complete URL for searching vectors
+- **LLM API**: `LLM_API_URL` - Complete URL for LLM completions
+- **No Path Appending**: URLs are used directly without any modification
+- **Flexibility**: Easy to switch between different providers by changing URLs
+
+### Robust Field Handling
+The vector store now handles inconsistent field names in the payload:
+- **Primary Field**: `"content"` - Standard field name for document content
+- **Fallback Field**: `"page_content"` - Alternative field name for compatibility
+- **Error Handling**: Graceful handling of missing or malformed payloads
+- **Backward Compatibility**: Works with existing data that uses different field names
 
 ## 🧪 Testing
 
@@ -214,8 +237,27 @@ python run_tests.py --quiet
 - **Integration Tests**: End-to-end workflows
 - **Coverage**: HTML reports generated in `htmlcov/`
 
+### Debug Tools
+- **test_apis.py**: Comprehensive API testing script
+- **debug_search.py**: Debug script for search functionality
+- **Interactive Documentation**: Available at `/docs` for manual testing
+
 ### Test the API
 Use the interactive documentation at `/docs` to test endpoints manually.
+
+## 🔄 Recent Updates
+
+### Search Functionality Fix (Latest)
+- **Issue**: Search was failing due to inconsistent field names (`"content"` vs `"page_content"`)
+- **Solution**: Added robust field handling in `VectorStore.search()` method
+- **Result**: Search now works with both field naming conventions
+- **Impact**: Improved compatibility with existing data and different document sources
+
+### External API Externalization
+- **Complete URL Configuration**: All external API endpoints are now fully configurable
+- **No Path Appending**: URLs are used directly without modification
+- **Flexible Provider Support**: Easy switching between different service providers
+- **Collection Management**: Dedicated `VECTOR_COLLECTION_URL` for collection operations
 
 ## 🔄 Next Phases
 
@@ -235,19 +277,4 @@ This is Phase 1 MVP. Future phases will include:
 
 ## 📄 License
 
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-For issues and questions:
-1. Check the API documentation at `/docs`
-2. Review the logs for error details
-3. Ensure your OpenAI API key is valid
-4. Verify your Qdrant Cloud credentials are correct
-5. Check that document formats are supported
-6. Run tests to verify your setup: `python run_tests.py`
-
-### Common Issues
-- **Qdrant Connection**: Ensure your Qdrant Cloud cluster is active and credentials are correct
-- **OpenAI API**: Verify your API key has sufficient credits and is valid
-- **File Uploads**: Check file size (max 10MB) and format (PDF, TXT, DOCX) 
+This project is licensed under the MIT License. 

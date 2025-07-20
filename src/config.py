@@ -5,16 +5,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    """Application configuration"""
+    """Application configuration with externalized API endpoints"""
     
-    # OpenAI Configuration
+    # External API Endpoints - Complete URLs
+    EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "https://api.openai.com/v1/embeddings")
+    VECTOR_INSERT_API_URL = os.getenv("VECTOR_INSERT_API_URL", "https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points")
+    VECTOR_SEARCH_API_URL = os.getenv("VECTOR_SEARCH_API_URL", "https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/search")
+    VECTOR_COLLECTION_URL = os.getenv("VECTOR_COLLECTION_URL", "https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents")
+    LLM_API_URL = os.getenv("LLM_API_URL", "https://api.openai.com/v1/chat/completions")
+    
+    # API Authentication
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")  # Custom LLM endpoint URL
-    
-    # Vector Database Configuration - Qdrant Cloud
-    QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-    QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+    
+    # Vector Database Configuration
     QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "documents")
     
     # Application Configuration
@@ -29,4 +33,8 @@ class Config:
     # RAG Configuration
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 200
-    TOP_K_RESULTS = 3 
+    TOP_K_RESULTS = 3
+    
+    # HTTP Configuration
+    REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
+    MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3")) 

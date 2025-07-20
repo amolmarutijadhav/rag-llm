@@ -1,128 +1,108 @@
-import os
+import uuid
+import json
 from typing import List, Dict, Any, Optional
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain_community.vectorstores import Qdrant
-from langchain_openai import OpenAIEmbeddings
 from src.config import Config
+from src.external_api_service import ExternalAPIService
 
 class VectorStore:
-    """Handles vector storage and retrieval using Qdrant Cloud"""
+    """Handles vector storage and retrieval using external APIs"""
     
     def __init__(self):
-        # Initialize OpenAI embeddings
-        self.embeddings = OpenAIEmbeddings(
-            openai_api_key=Config.OPENAI_API_KEY,
-            openai_api_base=Config.OPENAI_API_BASE
-        )
-        
-        # Initialize Qdrant client with cloud configuration
-        if Config.QDRANT_API_KEY:
-            # Cloud configuration
-            self.client = QdrantClient(
-                url=Config.QDRANT_HOST,
-                api_key=Config.QDRANT_API_KEY
-            )
-        else:
-            # Local configuration (fallback)
-            self.client = QdrantClient(
-                host=Config.QDRANT_HOST,
-                port=Config.QDRANT_PORT
-            )
-        
-        # Initialize LangChain vector store
-        self.vector_store = Qdrant(
-            client=self.client,
-            collection_name=Config.QDRANT_COLLECTION_NAME,
-            embeddings=self.embeddings
-        )
-        
-        # Ensure collection exists
-        self._ensure_collection_exists()
+        self.api_service = ExternalAPIService()
+        self.collection_name = Config.QDRANT_COLLECTION_NAME
     
-    def _ensure_collection_exists(self):
-        """Ensure the collection exists with proper configuration"""
+    async def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
+        """Add documents to the vector store using external APIs"""
         try:
-            # Check if collection exists
-            collections = self.client.get_collections()
-            collection_names = [col.name for col in collections.collections]
+            # Extract text content for embedding
+            texts = [doc["content"] for doc in documents]
             
-            if Config.QDRANT_COLLECTION_NAME not in collection_names:
-                # Create collection with proper configuration
-                self.client.create_collection(
-                    collection_name=Config.QDRANT_COLLECTION_NAME,
-                    vectors_config=VectorParams(
-                        size=1536,  # OpenAI embedding dimension
-                        distance=Distance.COSINE
-                    )
-                )
-                print(f"Created Qdrant collection: {Config.QDRANT_COLLECTION_NAME}")
-        except Exception as e:
-            print(f"Error ensuring collection exists: {e}")
-    
-    def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
-        """Add documents to the vector store"""
-        try:
-            # Prepare documents for LangChain
-            from langchain.schema import Document
+            # Get embeddings using external API
+            embeddings = await self.api_service.get_embeddings(texts)
             
-            langchain_docs = []
-            for doc in documents:
-                langchain_docs.append(Document(
-                    page_content=doc["content"],
-                    metadata=doc["metadata"]
-                ))
+            # Prepare points for vector database
+            points = []
+            for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+                point = {
+                    "id": str(uuid.uuid4()),
+                    "vector": embedding,
+                    "payload": {
+                        "content": doc["content"],
+                        "metadata": doc["metadata"]
+                    }
+                }
+                points.append(point)
             
-            # Add to Qdrant using LangChain
-            self.vector_store.add_documents(langchain_docs)
-            return True
+            # Insert vectors using external API
+            success = await self.api_service.insert_vectors(points)
+            return success
+            
         except Exception as e:
             print(f"Error adding documents: {e}")
             return False
     
-    def search(self, query: str, top_k: int = None) -> List[Dict[str, Any]]:
-        """Search for similar documents"""
+    async def search(self, query: str, top_k: int = None) -> List[Dict[str, Any]]:
+        """Search for similar documents using external APIs"""
         if top_k is None:
             top_k = Config.TOP_K_RESULTS
         
         try:
-            # Search using LangChain vector store
-            results = self.vector_store.similarity_search_with_score(
-                query, k=top_k
-            )
+            # Get query embedding
+            query_embeddings = await self.api_service.get_embeddings([query])
+            query_vector = query_embeddings[0]
             
-            # Format results
+            # Search vectors using external API
+            results = await self.api_service.search_vectors(query_vector, top_k)
+            
+            # Format results with better error handling
             formatted_results = []
-            for doc, score in results:
-                formatted_results.append({
-                    "content": doc.page_content,
-                    "metadata": doc.metadata,
-                    "score": float(score)
-                })
-            
+            for i, result in enumerate(results):
+                try:
+                    # Check if payload exists
+                    if "payload" not in result:
+                        continue
+                    
+                    payload = result["payload"]
+                    
+                    # Check if content exists in payload (handle both "content" and "page_content" fields)
+                    content = None
+                    if "content" in payload:
+                        content = payload["content"]
+                    elif "page_content" in payload:
+                        content = payload["page_content"]
+                    else:
+                        continue
+                    
+                    formatted_result = {
+                        "content": content,
+                        "metadata": payload.get("metadata", {}),
+                        "score": result.get("score", 0.0)
+                    }
+                    formatted_results.append(formatted_result)
+                    
+                except Exception as e:
+                    print(f"Error processing search result {i}: {e}")
+                    continue
             return formatted_results
+            
         except Exception as e:
             print(f"Error searching documents: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the vector store"""
         try:
-            collection_info = self.client.get_collection(Config.QDRANT_COLLECTION_NAME)
-            return {
-                "total_documents": collection_info.points_count,
-                "collection_name": Config.QDRANT_COLLECTION_NAME,
-                "vector_size": collection_info.config.params.vectors.size
-            }
+            return self.api_service.get_collection_stats()
         except Exception as e:
             print(f"Error getting collection stats: {e}")
-            return {"total_documents": 0, "collection_name": Config.QDRANT_COLLECTION_NAME}
+            return {"total_documents": 0, "collection_name": self.collection_name}
     
     def delete_collection(self) -> bool:
         """Delete the entire collection"""
         try:
-            self.client.delete_collection(Config.QDRANT_COLLECTION_NAME)
-            return True
+            return self.api_service.delete_collection()
         except Exception as e:
             print(f"Error deleting collection: {e}")
             return False 

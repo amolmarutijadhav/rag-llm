@@ -45,7 +45,7 @@ async def root():
 async def ask_question(request: QuestionRequest):
     """Ask a question and get an answer using RAG"""
     try:
-        result = rag_service.ask_question(request.question, request.top_k)
+        result = await rag_service.ask_question(request.question, request.top_k)
         return QuestionResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -76,8 +76,8 @@ async def upload_document(file: UploadFile = File(...)):
             temp_file_path = temp_file.name
         
         try:
-            # Process the document
-            result = rag_service.add_document(temp_file_path)
+            # Process the document using external APIs
+            result = await rag_service.add_document(temp_file_path)
             return DocumentResponse(**result)
         finally:
             # Clean up temporary file
@@ -92,7 +92,7 @@ async def upload_document(file: UploadFile = File(...)):
 async def add_text(request: TextInputRequest):
     """Add raw text to the knowledge base"""
     try:
-        result = rag_service.add_text(request.text, request.source_name)
+        result = await rag_service.add_text(request.text, request.source_name)
         return DocumentResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
