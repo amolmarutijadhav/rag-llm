@@ -12,7 +12,8 @@ class VectorStore:
     def __init__(self):
         # Initialize OpenAI embeddings
         self.embeddings = OpenAIEmbeddings(
-            openai_api_key=Config.OPENAI_API_KEY
+            openai_api_key=Config.OPENAI_API_KEY,
+            openai_api_base=Config.OPENAI_API_BASE
         )
         
         # Initialize Qdrant client with cloud configuration

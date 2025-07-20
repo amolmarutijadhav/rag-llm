@@ -14,6 +14,7 @@ class RAGService:
         self.vector_store = VectorStore()
         self.llm = ChatOpenAI(
             openai_api_key=Config.OPENAI_API_KEY,
+            openai_api_base=Config.OPENAI_API_BASE,
             model_name="gpt-3.5-turbo",
             temperature=0.1
         )

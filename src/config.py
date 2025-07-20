@@ -9,6 +9,7 @@ class Config:
     
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")  # Custom LLM endpoint URL
     
     # Vector Database Configuration - Qdrant Cloud
     QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")

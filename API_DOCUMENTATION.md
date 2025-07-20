@@ -1,7 +1,7 @@
 # RAG LLM API – API Documentation
 
 ## Overview
-A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud. This API enables document upload, text ingestion, semantic search, and question answering using OpenAI LLMs and Qdrant vector database.
+A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud. This API enables document upload, text ingestion, semantic search, and question answering using configurable LLM providers and Qdrant vector database.
 
 ---
 

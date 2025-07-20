@@ -72,6 +72,7 @@ Edit `src/config.py` or set environment variables:
 ```python
 # OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_BASE=https://api.openai.com/v1  # Custom LLM endpoint URL for your organization
 
 # Vector Database Configuration - Qdrant Cloud
 QDRANT_HOST=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io
@@ -165,7 +166,7 @@ rag-llm/
 - **FastAPI**: Modern, fast web framework for building APIs
 - **LangChain**: Framework for developing applications with LLMs
 - **Qdrant Cloud**: Vector database for storing and searching embeddings
-- **OpenAI**: Embeddings (text-embedding-ada-002) and chat completion (gpt-3.5-turbo)
+- **Configurable LLM**: Supports OpenAI-compatible endpoints (embeddings and chat completion)
 
 ### Data Flow
 1. **Document Upload** → Text extraction → Chunking → Embedding → Qdrant storage
@@ -178,6 +179,12 @@ rag-llm/
 - **Search Results**: Configurable top-k (default: 3)
 - **File Size Limit**: 10MB per upload
 - **Supported Formats**: PDF, TXT, DOCX
+
+### LLM Configuration
+The API supports custom LLM endpoints through the `OPENAI_API_BASE` environment variable:
+- **Default**: Uses standard OpenAI API (`https://api.openai.com/v1`)
+- **Custom**: Point to your organization's LLM endpoint
+- **Compatibility**: Works with any OpenAI-compatible API endpoint
 
 ## 🧪 Testing
 
