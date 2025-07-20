@@ -1,14 +1,16 @@
 import httpx
 import json
+import os
 from typing import List, Dict, Any, Optional
 from src.config import Config
 
 class ExternalAPIService:
-    """Service for making external API calls with complete URLs"""
+    """Service for making external API calls with complete URLs and certificate support"""
     
     def __init__(self):
         self.timeout = Config.REQUEST_TIMEOUT
         self.max_retries = Config.MAX_RETRIES
+        self.ssl_config = Config.get_ssl_config()
         
         # Common headers
         self.openai_headers = {
@@ -21,13 +23,20 @@ class ExternalAPIService:
             "Content-Type": "application/json"
         }
     
+    def _get_client_kwargs(self):
+        """Get common client configuration"""
+        return {
+            "timeout": self.timeout,
+            **self.ssl_config
+        }
+    
     async def create_collection_if_not_exists(self):
         """Create the collection if it doesn't exist"""
         try:
             # Use the dedicated collection URL
             collection_url = Config.VECTOR_COLLECTION_URL
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 try:
                     response = await client.get(
                         collection_url,
@@ -67,7 +76,7 @@ class ExternalAPIService:
                 "model": "text-embedding-ada-002"
             }
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 response = await client.post(
                     Config.EMBEDDING_API_URL,
                     headers=self.openai_headers,
@@ -91,7 +100,7 @@ class ExternalAPIService:
                 "points": points
             }
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 response = await client.put(
                     Config.VECTOR_INSERT_API_URL,
                     headers=self.qdrant_headers,
@@ -113,7 +122,7 @@ class ExternalAPIService:
                 "with_vector": False
             }
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 response = await client.post(
                     Config.VECTOR_SEARCH_API_URL,
                     headers=self.qdrant_headers,
@@ -137,7 +146,7 @@ class ExternalAPIService:
                 "max_tokens": 1000
             }
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 response = await client.post(
                     Config.LLM_API_URL,
                     headers=self.openai_headers,
@@ -157,7 +166,7 @@ class ExternalAPIService:
             # Use the dedicated collection URL
             collection_url = Config.VECTOR_COLLECTION_URL
             
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(**self._get_client_kwargs()) as client:
                 response = client.get(
                     collection_url,
                     headers=self.qdrant_headers
@@ -185,7 +194,7 @@ class ExternalAPIService:
             # Use the dedicated collection URL
             collection_url = Config.VECTOR_COLLECTION_URL
             
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(**self._get_client_kwargs()) as client:
                 response = client.delete(
                     collection_url,
                     headers=self.qdrant_headers
