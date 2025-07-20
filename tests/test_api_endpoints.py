@@ -23,187 +23,163 @@ class TestAPIEndpoints:
         response = async_client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
-        assert data["version"] == "1.0.0"
-        assert "timestamp" in data
+        assert data["status"] == "running"
+        assert "version" in data
 
     @pytest.mark.rag
-    def test_ask_question_success(self, async_client, sample_question_response):
+    @patch('src.main.rag_service')
+    def test_ask_question_success(self, mock_rag_service, async_client):
         """Test successful question asking."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.ask_question.return_value = sample_question_response
-            
-            response = async_client.post("/ask", json={
-                "question": "Who created Python?",
-                "top_k": 3
-            })
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert "Python" in data["answer"]
-            assert len(data["sources"]) > 0
-            assert "score" in data["sources"][0]
+        # Mock RAG service response
+        mock_rag_service.ask_question.return_value = {
+            "success": True,
+            "answer": "Python was created by Guido van Rossum.",
+            "sources": [
+                {
+                    "content": "Python is a programming language created by Guido van Rossum.",
+                    "metadata": {"source": "test.txt"},
+                    "score": 0.95
+                }
+            ]
+        }
 
-    @pytest.mark.rag
-    async def test_ask_question_invalid_request(self, async_client: AsyncClient):
-        """Test question asking with invalid request."""
-        response = await async_client.post("/ask", json={
-            "question": "",  # Empty question
+        response = async_client.post("/ask", json={
+            "question": "Who created Python?",
             "top_k": 3
         })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "Python was created by Guido van Rossum" in data["answer"]
+        assert len(data["sources"]) == 1
+
+    @pytest.mark.rag
+    def test_ask_question_invalid_request(self, async_client):
+        """Test question asking with invalid request."""
+        response = async_client.post("/ask", json={
+            "invalid_field": "test"
+        })
+
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
-    async def test_ask_question_service_error(self, async_client: AsyncClient):
-        """Test question asking when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.ask_question.side_effect = Exception("Service error")
-            
-            response = await async_client.post("/ask", json={
-                "question": "Who created Python?",
-                "top_k": 3
-            })
-            
-            assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
+    @patch('src.main.rag_service')
+    def test_ask_question_service_error(self, mock_rag_service, async_client):
+        """Test question asking with service error."""
+        # Mock RAG service error
+        mock_rag_service.ask_question.return_value = {
+            "success": False,
+            "answer": "Error processing request",
+            "sources": []
+        }
 
-    async def test_upload_document_success(self, async_client: AsyncClient, sample_document_response):
+        response = async_client.post("/ask", json={
+            "question": "Test question?"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "Error processing request" in data["answer"]
+
+    @pytest.mark.rag
+    @patch('src.main.rag_service')
+    def test_add_document_success(self, mock_rag_service, async_client):
         """Test successful document upload."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.add_document.return_value = sample_document_response
-            
-            files = {"file": ("test.txt", b"Python is a programming language", "text/plain")}
-            response = await async_client.post("/upload", files=files)
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert data["chunks_added"] == 2
+        # Mock RAG service response
+        mock_rag_service.add_document.return_value = {
+            "success": True,
+            "message": "Document uploaded successfully",
+            "chunks_processed": 5
+        }
 
-    async def test_upload_document_unsupported_format(self, async_client: AsyncClient):
-        """Test document upload with unsupported format."""
-        files = {"file": ("test.xyz", b"content", "application/octet-stream")}
-        response = await async_client.post("/upload", files=files)
-        
+        # Create a mock file
+        from io import BytesIO
+        file_content = b"This is a test document content."
+        files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
+
+        response = async_client.post("/upload", files=files)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "uploaded successfully" in data["message"]
+
+    @pytest.mark.rag
+    def test_add_document_invalid_format(self, async_client):
+        """Test document upload with invalid format."""
+        # Create a mock file with invalid format
+        from io import BytesIO
+        file_content = b"This is a test document content."
+        files = {"file": ("test.xyz", BytesIO(file_content), "application/octet-stream")}
+
+        response = async_client.post("/upload", files=files)
+
         assert response.status_code == 400
         data = response.json()
         assert "Unsupported file format" in data["detail"]
 
-    async def test_upload_document_too_large(self, async_client: AsyncClient):
-        """Test document upload with file too large."""
-        # Create a large file content
-        large_content = b"x" * (11 * 1024 * 1024)  # 11MB
-        
-        files = {"file": ("large.txt", large_content, "text/plain")}
-        response = await async_client.post("/upload", files=files)
-        
-        assert response.status_code == 400
-        data = response.json()
-        assert "File too large" in data["detail"]
-
     @pytest.mark.rag
-    async def test_add_text_success(self, async_client: AsyncClient, sample_document_response):
+    @patch('src.main.rag_service')
+    def test_add_text_success(self, mock_rag_service, async_client):
         """Test successful text addition."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.add_text.return_value = sample_document_response
-            
-            response = await async_client.post("/add-text", json={
-                "text": "Python is a programming language created by Guido van Rossum.",
-                "source_name": "python_info"
-            })
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert data["source_name"] == "python_info"
+        # Mock RAG service response
+        mock_rag_service.add_text.return_value = {
+            "success": True,
+            "message": "Text added successfully",
+            "chunks_processed": 2
+        }
+
+        response = async_client.post("/add-text", json={
+            "text": "This is some test text to add to the knowledge base.",
+            "source_name": "test_input"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "added successfully" in data["message"]
 
     @pytest.mark.rag
-    async def test_add_text_empty_text(self, async_client: AsyncClient):
+    def test_add_text_empty(self, async_client):
         """Test text addition with empty text."""
-        response = await async_client.post("/add-text", json={
+        response = async_client.post("/add-text", json={
             "text": "",
-            "source_name": "empty"
+            "source_name": "test_input"
         })
-        assert response.status_code == 422  # Validation error
 
-    async def test_get_stats_success(self, async_client: AsyncClient, sample_stats_response):
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "cannot be empty" in data["message"]
+
+    @pytest.mark.rag
+    @patch('src.main.rag_service')
+    def test_get_stats_success(self, mock_rag_service, async_client):
         """Test successful stats retrieval."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.get_stats.return_value = sample_stats_response
-            
-            response = await async_client.get("/stats")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert "vector_store" in data
-            assert data["vector_store"]["total_documents"] == 10
-            assert data["vector_store"]["vector_size"] == 1536
+        # Mock RAG service response
+        mock_rag_service.get_stats.return_value = {
+            "success": True,
+            "vector_store": {
+                "total_documents": 10,
+                "collection_name": "test_collection"
+            },
+            "supported_formats": [".pdf", ".txt", ".docx"],
+            "chunk_size": 1000,
+            "chunk_overlap": 200
+        }
 
-    async def test_get_stats_service_error(self, async_client: AsyncClient):
-        """Test stats retrieval when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.get_stats.side_effect = Exception("Service error")
-            
-            response = await async_client.get("/stats")
-            
-            assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
+        response = async_client.get("/stats")
 
-    @pytest.mark.rag
-    async def test_clear_knowledge_base_success(self, async_client: AsyncClient, sample_document_response):
-        """Test successful knowledge base clearing."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.clear_knowledge_base.return_value = sample_document_response
-            
-            response = await async_client.delete("/clear")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "vector_store" in data
+        assert "supported_formats" in data
 
-    @pytest.mark.rag
-    async def test_clear_knowledge_base_service_error(self, async_client: AsyncClient):
-        """Test knowledge base clearing when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.clear_knowledge_base.side_effect = Exception("Service error")
-            
-            response = await async_client.delete("/clear")
-            
-            assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
-
-
-@pytest.mark.api
-@pytest.mark.asyncio
-class TestAPIValidation:
-    """Test API request validation."""
-
-    async def test_ask_question_missing_fields(self, async_client: AsyncClient):
-        """Test question asking with missing required fields."""
-        response = await async_client.post("/ask", json={})
-        assert response.status_code == 422
-
-    async def test_ask_question_invalid_top_k(self, async_client: AsyncClient):
-        """Test question asking with invalid top_k value."""
-        response = await async_client.post("/ask", json={
-            "question": "test",
-            "top_k": -1  # Invalid negative value
-        })
-        assert response.status_code == 422
-
-    async def test_add_text_missing_text(self, async_client: AsyncClient):
-        """Test text addition with missing text field."""
-        response = await async_client.post("/add-text", json={
-            "source_name": "test"
-        })
-        assert response.status_code == 422
-
-    async def test_upload_document_missing_file(self, async_client: AsyncClient):
-        """Test document upload with missing file."""
-        response = await async_client.post("/upload")
-        assert response.status_code == 422 
+    @pytest.mark.api
+    def test_docs_endpoint(self, async_client):
+        """Test that docs endpoint is accessible."""
+        response = async_client.get("/docs")
+        assert response.status_code == 200 

@@ -1,7 +1,7 @@
 import pytest
 import pytest_asyncio
 import asyncio
-from unittest.mock import Mock
+from unittest.mock import Mock, AsyncMock
 from httpx import AsyncClient
 from fastapi.testclient import TestClient
 
@@ -21,8 +21,8 @@ def event_loop():
 
 @pytest.fixture
 def async_client():
-    """HTTP client for testing API endpoints."""
-    from fastapi.testclient import TestClient
+    """Async HTTP client for testing API endpoints."""
+    # Use TestClient for both sync and async tests
     return TestClient(app)
 
 
@@ -36,9 +36,9 @@ def sync_client():
 def mock_rag_service():
     """Mock RAG service for unit testing."""
     mock_service = Mock(spec=RAGService)
-    mock_service.ask_question = Mock()
-    mock_service.add_document = Mock()
-    mock_service.add_text = Mock()
+    mock_service.ask_question = AsyncMock()
+    mock_service.add_document = AsyncMock()
+    mock_service.add_text = AsyncMock()
     mock_service.get_stats = Mock()
     mock_service.clear_knowledge_base = Mock()
     return mock_service
@@ -48,8 +48,8 @@ def mock_rag_service():
 def mock_vector_store():
     """Mock vector store for unit testing."""
     mock_store = Mock(spec=VectorStore)
-    mock_store.add_documents = Mock(return_value=True)
-    mock_store.search = Mock(return_value=[
+    mock_store.add_documents = AsyncMock(return_value=True)
+    mock_store.search = AsyncMock(return_value=[
         {
             "content": "Python was created by Guido van Rossum",
             "metadata": {"source": "test.txt"},

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 from src.external_api_service import ExternalAPIService
 from src.config import Config
 
@@ -15,12 +15,13 @@ class TestExternalAPIService:
     async def test_get_embeddings_success(self, mock_post):
         """Test successful embedding generation"""
         # Mock response
-        mock_response = AsyncMock()
+        mock_response = Mock()
         mock_response.json.return_value = {
             "data": [
                 {"embedding": [0.1, 0.2, 0.3] * 512}  # 1536 dimensions
             ]
         }
+        mock_response.raise_for_status = AsyncMock()
         mock_post.return_value = mock_response
         
         # Test
@@ -33,11 +34,18 @@ class TestExternalAPIService:
         mock_post.assert_called_once()
     
     @patch('httpx.AsyncClient.put')
-    async def test_insert_vectors_success(self, mock_put):
+    @patch('httpx.AsyncClient.get')
+    async def test_insert_vectors_success(self, mock_get, mock_put):
         """Test successful vector insertion"""
-        # Mock response
-        mock_response = AsyncMock()
-        mock_put.return_value = mock_response
+        # Mock collection check response (collection doesn't exist)
+        mock_get_response = AsyncMock()
+        mock_get_response.status_code = 404
+        mock_get.side_effect = Exception("Collection not found")
+        
+        # Mock collection creation response
+        mock_create_response = Mock()
+        mock_create_response.raise_for_status = AsyncMock()
+        mock_put.return_value = mock_create_response
         
         # Test
         points = [
@@ -51,13 +59,14 @@ class TestExternalAPIService:
         
         # Assertions
         assert result is True
-        mock_put.assert_called_once()
+        # Should be called twice: once for collection creation, once for insertion
+        assert mock_put.call_count == 2
     
     @patch('httpx.AsyncClient.post')
     async def test_search_vectors_success(self, mock_post):
         """Test successful vector search"""
         # Mock response
-        mock_response = AsyncMock()
+        mock_response = Mock()
         mock_response.json.return_value = {
             "result": [
                 {
@@ -67,6 +76,7 @@ class TestExternalAPIService:
                 }
             ]
         }
+        mock_response.raise_for_status = AsyncMock()
         mock_post.return_value = mock_response
         
         # Test
@@ -82,7 +92,7 @@ class TestExternalAPIService:
     async def test_call_llm_success(self, mock_post):
         """Test successful LLM call"""
         # Mock response
-        mock_response = AsyncMock()
+        mock_response = Mock()
         mock_response.json.return_value = {
             "choices": [
                 {
@@ -92,6 +102,7 @@ class TestExternalAPIService:
                 }
             ]
         }
+        mock_response.raise_for_status = AsyncMock()
         mock_post.return_value = mock_response
         
         # Test

@@ -54,6 +54,13 @@ class RAGService:
     async def add_text(self, text: str, source_name: str = "text_input") -> Dict[str, Any]:
         """Add raw text to the knowledge base"""
         try:
+            # Validate text is not empty
+            if not text or not text.strip():
+                return {
+                    "success": False,
+                    "message": "Error processing text: Text cannot be empty"
+                }
+            
             # Load and process text
             documents = self.document_loader.load_text(text, source_name)
             
