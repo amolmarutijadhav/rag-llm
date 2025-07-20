@@ -1,0 +1,22 @@
+# Core dependencies for Phase 1 MVP
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+
+# LangChain and AI - Compatible versions
+langchain==0.1.0
+langchain-openai==0.0.5
+langchain-community==0.0.10
+openai>=1.10.0
+
+# Vector database - Qdrant
+qdrant-client>=1.7.0
+
+# Document processing
+pypdf==3.17.1
+python-docx==1.1.0
+
+# Utilities - Compatible with langchain-openai
+pydantic>=2.6.0
+tiktoken>=0.5.2,<0.6.0 
