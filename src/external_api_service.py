@@ -160,6 +160,21 @@ class ExternalAPIService:
         except Exception as e:
             raise Exception(f"LLM API error: {str(e)}")
     
+    async def call_openai_completions(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Make OpenAI chat completions call with full request"""
+        try:
+            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
+                response = await client.post(
+                    Config.LLM_API_URL,
+                    headers=self.openai_headers,
+                    json=request
+                )
+                response.raise_for_status()
+                return response.json()
+                
+        except Exception as e:
+            raise Exception(f"OpenAI API error: {str(e)}")
+    
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get collection statistics using external API"""
         try:

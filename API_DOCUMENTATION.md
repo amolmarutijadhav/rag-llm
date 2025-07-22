@@ -164,14 +164,95 @@ MAX_RETRIES=3
 
 ### 6. Clear Knowledge Base
 - **DELETE /clear**
-  - Delete all documents from the knowledge base.
+  - Clear all documents from the knowledge base.
 
 **Response Example:**
 ```json
 {
   "success": true,
-  "message": "Knowledge base cleared successfully",
-  "chunks_processed": null
+  "message": "Knowledge base cleared successfully"
+}
+```
+
+---
+
+### 7. RAG-Enhanced Chat Completions (Multi-Agentic)
+- **POST /chat/completions**
+  - RAG-enhanced chat completions proxy for multi-agentic systems. Preserves agent persona while adding relevant context from the knowledge base.
+
+**Request Body:**
+```json
+{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful customer service agent for TechCorp. You are friendly, professional, and knowledgeable about our products."
+    },
+    {
+      "role": "user",
+      "content": "What are the specifications of the X1 laptop?"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 500
+}
+```
+
+**Response Example:**
+```json
+{
+  "id": "chatcmpl-1234567890",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-3.5-turbo",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Based on our product database, the X1 laptop features a 14-inch display, Intel Core i7 processor, 16GB RAM, and 512GB SSD storage. It's designed for business professionals and includes enterprise-grade security features."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 45,
+    "total_tokens": 195
+  },
+  "rag_metadata": {
+    "agent_persona_preserved": true,
+    "context_documents_found": 2,
+    "original_message_count": 2,
+    "enhanced_message_count": 2
+  }
+}
+```
+
+**Key Features:**
+- **Agent Persona Preservation**: The original system message (agent personality) is enhanced, not replaced
+- **Multi-Agentic Support**: Designed for systems with multiple agents, each with their own persona
+- **Context Integration**: RAG context is seamlessly integrated into the agent's knowledge base
+- **Backward Compatibility**: Works with existing OpenAI chat completions clients
+- **Validation**: Ensures proper message structure with system role for agent persona
+
+**Error Responses:**
+```json
+{
+  "detail": "Invalid message structure. First message must be 'system' role for agent persona."
+}
+```
+
+```json
+{
+  "detail": "No user message found"
+}
+```
+
+```json
+{
+  "detail": "RAG processing error: [specific error message]"
 }
 ```
 
@@ -313,13 +394,4 @@ python run_tests.py --type rag
 ## Recent Updates
 
 ### Search Functionality Fix (Latest)
-- **Issue**: Search was failing due to inconsistent field names (`"content"` vs `"page_content"`)
-- **Solution**: Added robust field handling in `VectorStore.search()` method
-- **Result**: Search now works with both field naming conventions
-- **Impact**: Improved compatibility with existing data and different document sources
-
-### External API Externalization
-- **Complete URL Configuration**: All external API endpoints are now fully configurable
-- **No Path Appending**: URLs are used directly without modification
-- **Flexible Provider Support**: Easy switching between different service providers
-- **Collection Management**: Dedicated `VECTOR_COLLECTION_URL` for collection operations 
+- **Issue**: Search was failing due to inconsistent field names (`"content"` vs `"page_content"`

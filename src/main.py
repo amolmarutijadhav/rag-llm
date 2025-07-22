@@ -1,7 +1,7 @@
 import os
 import tempfile
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Any
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,6 +12,61 @@ from src.models import (
     DocumentResponse, StatsResponse, HealthResponse
 )
 from src.config import Config
+
+# Helper functions for multi-agentic RAG processing
+def extract_last_user_message(messages: List[Dict[str, str]]) -> str:
+    """Extract the last user message from the conversation"""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            return msg.get("content", "")
+    return ""
+
+def validate_multi_agent_messages(messages: List[Dict[str, str]]) -> bool:
+    """Validate that messages follow multi-agentic structure"""
+    if not messages:
+        return False
+    
+    # Check if first message is system (agent persona)
+    if messages[0].get("role") != "system":
+        return False
+    
+    # Check for at least one user message
+    has_user_message = any(msg.get("role") == "user" for msg in messages)
+    if not has_user_message:
+        return False
+    
+    return True
+
+def get_agent_persona(messages: List[Dict[str, str]]) -> str:
+    """Extract the agent's persona from system message"""
+    if messages and messages[0].get("role") == "system":
+        return messages[0].get("content", "")
+    return ""
+
+def enhance_messages_with_rag(messages: List[Dict[str, str]], relevant_docs: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Enhance messages with RAG context while preserving agent persona"""
+    if not relevant_docs:
+        return messages
+    
+    # Prepare RAG context
+    context = "\n\n".join([doc["content"] for doc in relevant_docs])
+    rag_enhancement = f"\n\nYou have access to the following relevant information that may help answer the user's question:\n{context}\n\nUse this information to provide more accurate and helpful responses while maintaining your designated role and personality."
+    
+    enhanced_messages = []
+    
+    for i, message in enumerate(messages):
+        if i == 0 and message.get("role") == "system":
+            # Enhance the first system message with RAG context
+            enhanced_content = message["content"] + rag_enhancement
+            enhanced_messages.append({
+                "role": "system",
+                "content": enhanced_content
+            })
+        else:
+            # Keep other messages unchanged
+            enhanced_messages.append(message)
+    
+    return enhanced_messages
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -119,6 +174,56 @@ async def clear_knowledge_base():
 async def health_check():
     """Simple health check"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.post("/chat/completions")
+async def rag_chat_completions_multi_agent(request: Dict[str, Any]):
+    """RAG-enhanced chat completions for multi-agentic systems"""
+    try:
+        messages = request.get("messages", [])
+        if not messages:
+            raise HTTPException(status_code=400, detail="No messages provided")
+        
+        # Validate multi-agentic structure
+        if not validate_multi_agent_messages(messages):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid message structure. First message must be 'system' role for agent persona."
+            )
+        
+        # Extract agent persona for logging/debugging
+        agent_persona = get_agent_persona(messages)
+        
+        # Extract the last user message for RAG search
+        last_user_message = extract_last_user_message(messages)
+        if not last_user_message:
+            raise HTTPException(status_code=400, detail="No user message found")
+        
+        # Get RAG context
+        relevant_docs = await rag_service.vector_store.search(last_user_message, top_k=3)
+        
+        # Enhance messages while preserving agent persona
+        enhanced_messages = enhance_messages_with_rag(messages, relevant_docs)
+        
+        # Forward to OpenAI
+        modified_request = request.copy()
+        modified_request["messages"] = enhanced_messages
+        
+        response = await rag_service.api_service.call_openai_completions(modified_request)
+        
+        # Add metadata for debugging
+        response["rag_metadata"] = {
+            "agent_persona_preserved": True,
+            "context_documents_found": len(relevant_docs),
+            "original_message_count": len(messages),
+            "enhanced_message_count": len(enhanced_messages)
+        }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAG processing error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
