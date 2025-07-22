@@ -50,8 +50,8 @@ class ExternalAPIService:
                 # Collection doesn't exist, create it
                 create_payload = {
                     "vectors": {
-                        "size": 1536,
-                        "distance": "Cosine"
+                        "size": Config.VECTOR_SIZE,
+                        "distance": Config.VECTOR_DISTANCE_METRIC
                     }
                 }
                 
@@ -73,7 +73,7 @@ class ExternalAPIService:
         try:
             payload = {
                 "input": texts,
-                "model": "text-embedding-ada-002"
+                "model": Config.EMBEDDING_MODEL
             }
             
             async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
@@ -140,10 +140,10 @@ class ExternalAPIService:
         """Make LLM call using external API"""
         try:
             payload = {
-                "model": "gpt-3.5-turbo",
+                "model": Config.LLM_MODEL,
                 "messages": messages,
-                "temperature": 0.1,
-                "max_tokens": 1000
+                "temperature": Config.LLM_TEMPERATURE,
+                "max_tokens": Config.LLM_MAX_TOKENS
             }
             
             async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
@@ -192,7 +192,7 @@ class ExternalAPIService:
                 return {
                     "total_documents": data["result"]["points_count"],
                     "collection_name": Config.QDRANT_COLLECTION_NAME,
-                    "vector_size": data["result"]["config"]["params"]["vectors"]["size"]
+                    "vector_size": Config.VECTOR_SIZE
                 }
                 
         except Exception as e:

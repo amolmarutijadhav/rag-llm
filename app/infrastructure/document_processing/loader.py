@@ -42,7 +42,7 @@ class DocumentLoader:
         processed_chunks = []
         for i, chunk in enumerate(chunks):
             processed_chunks.append({
-                "id": f"{os.path.basename(file_path)}_{i}",
+                "id": f"{os.path.basename(file_path)}{Config.CHUNK_ID_SEPARATOR}{i}",
                 "content": chunk.page_content,
                 "metadata": {
                     "source": file_path,
@@ -53,8 +53,12 @@ class DocumentLoader:
         
         return processed_chunks
     
-    def load_text(self, text: str, source_name: str = "text_input") -> List[Dict[str, Any]]:
+    def load_text(self, text: str, source_name: str = None) -> List[Dict[str, Any]]:
         """Load and process raw text"""
+        
+        # Use default source name from config if not provided
+        if source_name is None:
+            source_name = Config.DEFAULT_SOURCE_NAME
         
         # Split text into chunks
         chunks = self.text_splitter.split_text(text)
@@ -63,7 +67,7 @@ class DocumentLoader:
         processed_chunks = []
         for i, chunk in enumerate(chunks):
             processed_chunks.append({
-                "id": f"{source_name}_{i}",
+                "id": f"{source_name}{Config.CHUNK_ID_SEPARATOR}{i}",
                 "content": chunk,
                 "metadata": {
                     "source": source_name,

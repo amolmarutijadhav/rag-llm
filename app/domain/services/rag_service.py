@@ -11,18 +11,6 @@ class RAGService:
         self.document_loader = DocumentLoader()
         self.vector_store = VectorStore()
         self.api_service = ExternalAPIService()
-        
-        # Define the RAG prompt template
-        self.rag_prompt = """You are a helpful AI assistant that answers questions based on the provided context. 
-        Use only the information from the context to answer the question. If the context doesn't contain 
-        enough information to answer the question, say "I don't have enough information to answer this question."
-        
-        Context:
-        {context}
-        
-        Question: {question}
-        
-        Answer:"""
     
     async def add_document(self, file_path: str) -> Dict[str, Any]:
         """Add a document to the knowledge base"""
@@ -88,6 +76,10 @@ class RAGService:
     async def ask_question(self, question: str, top_k: int = None) -> Dict[str, Any]:
         """Ask a question and get an answer using RAG with external APIs"""
         try:
+            # Use default top_k from config if not provided
+            if top_k is None:
+                top_k = Config.DEFAULT_TOP_K
+                
             # Search for relevant documents using external APIs
             relevant_docs = await self.vector_store.search(question, top_k)
             
@@ -101,19 +93,21 @@ class RAGService:
             # Prepare context from relevant documents
             context = "\n\n".join([doc["content"] for doc in relevant_docs])
             
-            # Generate answer using external LLM API
+            # Generate answer using external LLM API with configurable prompt template
             messages = [
-                {"role": "system", "content": self.rag_prompt.format(context=context, question=question)},
+                {"role": "system", "content": Config.RAG_PROMPT_TEMPLATE.format(context=context, question=question)},
                 {"role": "user", "content": question}
             ]
             
             answer = await self.api_service.call_llm(messages)
             
-            # Prepare sources information
+            # Prepare sources information with configurable preview length
             sources = []
             for doc in relevant_docs:
+                preview_length = Config.CONTENT_PREVIEW_LENGTH
+                content_preview = doc["content"][:preview_length] + "..." if len(doc["content"]) > preview_length else doc["content"]
                 sources.append({
-                    "content": doc["content"][:200] + "..." if len(doc["content"]) > 200 else doc["content"],
+                    "content": content_preview,
                     "metadata": doc["metadata"],
                     "score": doc["score"]
                 })

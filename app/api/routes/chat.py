@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 from app.domain.services.rag_service import RAGService
+from app.core.config import Config
 from app.utils.message_utils import (
     extract_last_user_message,
     validate_multi_agent_messages,
@@ -34,8 +35,8 @@ async def rag_chat_completions_multi_agent(request: Dict[str, Any]):
         if not last_user_message:
             raise HTTPException(status_code=400, detail="No user message found")
         
-        # Get RAG context
-        relevant_docs = await rag_service.vector_store.search(last_user_message, top_k=3)
+        # Get RAG context with configurable top_k
+        relevant_docs = await rag_service.vector_store.search(last_user_message, top_k=Config.DEFAULT_TOP_K)
         
         # Enhance messages while preserving agent persona
         enhanced_messages = enhance_messages_with_rag(messages, relevant_docs)

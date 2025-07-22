@@ -2,21 +2,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import health, documents, questions, chat
+from app.core.config import Config
 
-# Initialize FastAPI app
+# Initialize FastAPI app with configurable settings
 app = FastAPI(
-    title="RAG LLM API",
-    description="A simple RAG (Retrieval-Augmented Generation) API for document Q&A",
-    version="1.0.0"
+    title=Config.API_TITLE,
+    description=Config.API_DESCRIPTION,
+    version=Config.API_VERSION
 )
 
-# Add CORS middleware
+# Add CORS middleware with configurable settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=Config.CORS_ALLOW_ORIGINS,
+    allow_credentials=Config.CORS_ALLOW_CREDENTIALS,
+    allow_methods=Config.CORS_ALLOW_METHODS,
+    allow_headers=Config.CORS_ALLOW_HEADERS,
 )
 
 # Include routers
