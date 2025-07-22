@@ -5,10 +5,10 @@ from unittest.mock import Mock, AsyncMock
 from httpx import AsyncClient
 from fastapi.testclient import TestClient
 
-from src.main import app
-from src.rag_service import RAGService
-from src.vector_store import VectorStore
-from src.document_loader import DocumentLoader
+from app.main import app
+from app.domain.services.rag_service import RAGService
+from app.infrastructure.vector_store.vector_store import VectorStore
+from app.infrastructure.document_processing.loader import DocumentLoader
 
 
 @pytest.fixture(scope="session")
@@ -107,7 +107,7 @@ def sample_question_response():
     """Sample question response for testing."""
     return {
         "success": True,
-        "answer": "Python was created by Guido van Rossum.",
+        "answer": "Python was created by Guido van Rossum in 1991.",
         "sources": [
             {
                 "content": "Python is a programming language created by Guido van Rossum.",
@@ -124,9 +124,8 @@ def sample_document_response():
     """Sample document response for testing."""
     return {
         "success": True,
-        "message": "Document processed successfully",
-        "chunks_added": 2,
-        "source_name": "test.txt"
+        "message": "Document added successfully",
+        "chunks_processed": 2
     }
 
 
