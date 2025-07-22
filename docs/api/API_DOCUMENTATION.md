@@ -31,6 +31,11 @@ LLM_API_URL=https://api.openai.com/v1/chat/completions
 OPENAI_API_KEY=your_openai_api_key_here
 QDRANT_API_KEY=your_qdrant_api_key_here
 
+# Certificate Configuration
+CERT_FILE_PATH=/path/to/your/certificate.cer
+VERIFY_SSL=True
+CERT_VERIFY_MODE=auto
+
 # Vector Database Configuration
 QDRANT_COLLECTION_NAME=documents
 
@@ -38,6 +43,36 @@ QDRANT_COLLECTION_NAME=documents
 DEBUG=True
 HOST=0.0.0.0
 PORT=8000
+
+# Document Processing Configuration
+CHUNK_ID_SEPARATOR=_
+DEFAULT_SOURCE_NAME=text_input
+
+# RAG Configuration
+RAG_PROMPT_TEMPLATE=You are a helpful AI assistant that answers questions based on the provided context. Use only the information from the context to answer the question. If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:
+CONTENT_PREVIEW_LENGTH=200
+DEFAULT_TOP_K=3
+
+# AI Model Configuration
+EMBEDDING_MODEL=text-embedding-ada-002
+LLM_MODEL=gpt-3.5-turbo
+VECTOR_SIZE=1536
+VECTOR_DISTANCE_METRIC=Cosine
+
+# LLM Parameters
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=1000
+
+# FastAPI Application Configuration
+API_TITLE=RAG LLM API
+API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
+API_VERSION=1.0.0
+
+# CORS Configuration
+CORS_ALLOW_ORIGINS=*
+CORS_ALLOW_CREDENTIALS=True
+CORS_ALLOW_METHODS=*
+CORS_ALLOW_HEADERS=*
 
 # HTTP Configuration
 REQUEST_TIMEOUT=30
@@ -66,7 +101,7 @@ MAX_RETRIES=3
 ---
 
 ### 2. Question Answering
-- **POST /ask**
+- **POST /questions/ask**
   - Ask a question and get an answer using RAG with robust field handling.
 
 **Request Body:**
@@ -101,7 +136,7 @@ MAX_RETRIES=3
 ---
 
 ### 3. Document Upload
-- **POST /upload**
+- **POST /documents/upload**
   - Upload and process a document (PDF, TXT, DOCX).
 
 **Form Data:**
@@ -119,7 +154,7 @@ MAX_RETRIES=3
 ---
 
 ### 4. Add Raw Text
-- **POST /add-text**
+- **POST /documents/add-text**
   - Add raw text to the knowledge base.
 
 **Request Body:**
@@ -163,7 +198,7 @@ MAX_RETRIES=3
 ---
 
 ### 6. Clear Knowledge Base
-- **DELETE /clear**
+- **DELETE /documents/clear**
   - Clear all documents from the knowledge base.
 
 **Response Example:**
@@ -270,7 +305,7 @@ MAX_RETRIES=3
 
 ### Upload a Document
 ```bash
-curl -X POST "http://localhost:8000/upload" \
+curl -X POST "http://localhost:8000/documents/upload" \
      -H "accept: application/json" \
      -H "Content-Type: multipart/form-data" \
      -F "file=@your_document.pdf"
@@ -278,7 +313,7 @@ curl -X POST "http://localhost:8000/upload" \
 
 ### Add Text
 ```bash
-curl -X POST "http://localhost:8000/add-text" \
+curl -X POST "http://localhost:8000/documents/add-text" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{"text": "Your text content here", "source_name": "my_text"}'
@@ -286,7 +321,7 @@ curl -X POST "http://localhost:8000/add-text" \
 
 ### Ask a Question
 ```bash
-curl -X POST "http://localhost:8000/ask" \
+curl -X POST "http://localhost:8000/questions/ask" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{"question": "What is the main topic?", "top_k": 3}'
@@ -299,7 +334,7 @@ curl -X GET "http://localhost:8000/stats"
 
 ### Clear Knowledge Base
 ```bash
-curl -X DELETE "http://localhost:8000/clear"
+curl -X DELETE "http://localhost:8000/documents/clear"
 ```
 
 ---

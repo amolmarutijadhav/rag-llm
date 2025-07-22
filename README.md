@@ -56,21 +56,22 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 - `GET /health` - Simple health check
 
 ### Document Management
-- `POST /upload` - Upload and process documents
-- `POST /add-text` - Add raw text to knowledge base
-- `DELETE /clear` - Clear all documents
+- `POST /documents/upload` - Upload and process documents
+- `POST /documents/add-text` - Add raw text to knowledge base
+- `DELETE /documents/clear` - Clear all documents
 
 ### Question Answering
-- `POST /ask` - Ask questions and get answers
+- `POST /questions/ask` - Ask questions and get answers
+- `POST /chat/completions` - RAG-enhanced chat completions (OpenAI-compatible)
 
 ### System Info
 - `GET /stats` - Get system statistics
 
 ## 🔧 Configuration
 
-Edit `src/config.py` or set environment variables:
+Edit `app/core/config.py` or set environment variables:
 
-```python
+```bash
 # External API Endpoints - Complete URLs (no path appending)
 EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
 VECTOR_COLLECTION_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents
@@ -81,6 +82,11 @@ LLM_API_URL=https://api.openai.com/v1/chat/completions
 # API Authentication
 OPENAI_API_KEY=your_openai_api_key_here
 QDRANT_API_KEY=your_qdrant_api_key_here
+
+# Certificate Configuration
+CERT_FILE_PATH=/path/to/your/certificate.cer
+VERIFY_SSL=True
+CERT_VERIFY_MODE=auto
 
 # Vector Database Configuration
 QDRANT_COLLECTION_NAME=documents
@@ -94,10 +100,40 @@ PORT=8000
 MAX_FILE_SIZE=10485760  # 10MB
 SUPPORTED_FORMATS=[".pdf", ".txt", ".docx"]
 
+# Document Processing Configuration
+CHUNK_ID_SEPARATOR=_
+DEFAULT_SOURCE_NAME=text_input
+
 # RAG Configuration
 CHUNK_SIZE=1000
 CHUNK_OVERLAP=200
 TOP_K_RESULTS=3
+
+# RAG Prompt Templates
+RAG_PROMPT_TEMPLATE=You are a helpful AI assistant that answers questions based on the provided context. Use only the information from the context to answer the question. If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:
+CONTENT_PREVIEW_LENGTH=200
+DEFAULT_TOP_K=3
+
+# AI Model Configuration
+EMBEDDING_MODEL=text-embedding-ada-002
+LLM_MODEL=gpt-3.5-turbo
+VECTOR_SIZE=1536
+VECTOR_DISTANCE_METRIC=Cosine
+
+# LLM Parameters
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=1000
+
+# FastAPI Application Configuration
+API_TITLE=RAG LLM API
+API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
+API_VERSION=1.0.0
+
+# CORS Configuration
+CORS_ALLOW_ORIGINS=*
+CORS_ALLOW_CREDENTIALS=True
+CORS_ALLOW_METHODS=*
+CORS_ALLOW_HEADERS=*
 
 # HTTP Configuration
 REQUEST_TIMEOUT=30
@@ -108,7 +144,7 @@ MAX_RETRIES=3
 
 ### 1. Upload a Document
 ```bash
-curl -X POST "http://localhost:8000/upload" \
+curl -X POST "http://localhost:8000/documents/upload" \
      -H "accept: application/json" \
      -H "Content-Type: multipart/form-data" \
      -F "file=@your_document.pdf"
@@ -116,7 +152,7 @@ curl -X POST "http://localhost:8000/upload" \
 
 ### 2. Add Text
 ```bash
-curl -X POST "http://localhost:8000/add-text" \
+curl -X POST "http://localhost:8000/documents/add-text" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{"text": "Your text content here", "source_name": "my_text"}'
@@ -124,13 +160,29 @@ curl -X POST "http://localhost:8000/add-text" \
 
 ### 3. Ask a Question
 ```bash
-curl -X POST "http://localhost:8000/ask" \
+curl -X POST "http://localhost:8000/questions/ask" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{"question": "What is the main topic?", "top_k": 3}'
 ```
 
-### 4. Get Statistics
+### 4. RAG-Enhanced Chat Completions
+```bash
+curl -X POST "http://localhost:8000/chat/completions" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gpt-3.5-turbo",
+       "messages": [
+         {"role": "system", "content": "You are a helpful assistant."},
+         {"role": "user", "content": "What is the main topic?"}
+       ],
+       "temperature": 0.7,
+       "max_tokens": 500
+     }'
+```
+
+### 5. Get Statistics
 ```bash
 curl -X GET "http://localhost:8000/stats"
 ```
@@ -139,29 +191,55 @@ curl -X GET "http://localhost:8000/stats"
 
 ```
 rag-llm/
-├── src/
+├── app/
 │   ├── __init__.py
-│   ├── config.py              # Configuration management with externalized APIs
-│   ├── external_api_service.py # External API calls with complete URLs
-│   ├── document_loader.py     # Document processing
-│   ├── vector_store.py        # Vector database operations with robust field handling
-│   ├── rag_service.py         # Main RAG orchestration using external APIs
-│   ├── models.py              # Pydantic models
-│   └── main.py               # FastAPI application
+│   ├── main.py                    # FastAPI application with configurable settings
+│   ├── core/
+│   │   ├── __init__.py
+│   │   └── config.py              # Centralized configuration with 15+ externalized constants
+│   ├── domain/
+│   │   ├── __init__.py
+│   │   ├── entities/
+│   │   ├── models/                # Pydantic models
+│   │   └── services/
+│   │       ├── __init__.py
+│   │       └── rag_service.py     # Main RAG orchestration with configurable prompts
+│   ├── infrastructure/
+│   │   ├── __init__.py
+│   │   ├── document_processing/
+│   │   │   ├── __init__.py
+│   │   │   └── loader.py          # Document processing with configurable settings
+│   │   ├── external/
+│   │   │   ├── __init__.py
+│   │   │   └── external_api_service.py # External API calls with configurable models
+│   │   └── vector_store/
+│   │       ├── __init__.py
+│   │       └── vector_store.py    # Vector database operations
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── middleware/
+│   │   └── routes/                # API route handlers
+│   │       ├── __init__.py
+│   │       ├── chat.py            # RAG-enhanced chat completions
+│   │       ├── documents.py       # Document management endpoints
+│   │       ├── health.py          # Health check endpoints
+│   │       └── questions.py       # Question answering endpoints
+│   └── utils/
+│       ├── __init__.py
+│       ├── cert_utils.py          # Certificate management
+│       └── message_utils.py       # Message processing utilities
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py        # Test configuration and fixtures
-│   ├── test_api_endpoints.py      # API endpoint tests
-│   ├── test_api_endpoints_sync.py # Synchronous API tests
-│   └── test_rag_service.py        # RAG service unit tests
-├── requirements.txt       # Python dependencies
-├── env.example           # Environment template
-├── run.py               # Application runner
-├── run_tests.py         # Test runner script
-├── pytest.ini          # Pytest configuration
-├── test_apis.py         # API testing script
-├── debug_search.py      # Debug script for search functionality
-└── README.md            # This file
+│   ├── conftest.py                # Test configuration and fixtures
+│   ├── unit/                      # Unit tests
+│   ├── integration/               # Integration tests
+│   └── e2e/                       # End-to-end tests
+├── config/
+│   └── env.example                # Environment template with all configuration options
+├── docs/                          # Comprehensive documentation
+├── requirements.txt               # Python dependencies
+├── scripts/                       # Utility scripts
+└── README.md                      # This file
 ```
 
 ## 🔍 How It Works
@@ -247,7 +325,15 @@ Use the interactive documentation at `/docs` to test endpoints manually.
 
 ## 🔄 Recent Updates
 
-### Search Functionality Fix (Latest)
+### Configuration Externalization (Latest)
+- **15+ New Configuration Constants**: Externalized all hardcoded values to environment variables
+- **RAG Prompt Templates**: Configurable prompt templates via `RAG_PROMPT_TEMPLATE`
+- **AI Model Configuration**: Configurable models, parameters, and vector settings
+- **FastAPI Application Settings**: Configurable API metadata and CORS settings
+- **Document Processing**: Configurable chunk separators and source names
+- **Maintainability**: No more magic numbers, centralized configuration management
+
+### Search Functionality Fix
 - **Issue**: Search was failing due to inconsistent field names (`"content"` vs `"page_content"`)
 - **Solution**: Added robust field handling in `VectorStore.search()` method
 - **Result**: Search now works with both field naming conventions
@@ -258,6 +344,12 @@ Use the interactive documentation at `/docs` to test endpoints manually.
 - **No Path Appending**: URLs are used directly without modification
 - **Flexible Provider Support**: Easy switching between different service providers
 - **Collection Management**: Dedicated `VECTOR_COLLECTION_URL` for collection operations
+
+### RAG-Enhanced Chat Completions
+- **New Endpoint**: `/chat/completions` - OpenAI-compatible RAG-enhanced chat
+- **Multi-Agentic Support**: Preserves agent personas while adding RAG context
+- **Backward Compatibility**: Works with existing OpenAI chat completions clients
+- **Context Enhancement**: Automatically enhances responses with relevant knowledge base content
 
 ## 🔄 Next Phases
 
