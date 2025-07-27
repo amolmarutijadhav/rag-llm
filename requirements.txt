@@ -25,6 +25,7 @@ python-docx>=0.8.11  # For extracting images from DOCX files
 
 # Utilities - Compatible with langchain-openai
 pydantic>=2.6.0
+pydantic-core>=2.33.2  # Required by pydantic 2.11.7
 tiktoken>=0.5.2,<0.6.0
 
 # Testing dependencies - Compatible versions for document upload testing
@@ -33,6 +34,28 @@ pytest-asyncio>=0.21.0
 httpx==0.25.0  # Compatible with FastAPI 0.104.1 and TestClient
 pytest-mock>=3.11.0
 pytest-cov>=4.1.0
+
+# Additional dependencies that were installed successfully
+requests>=2.32.4  # HTTP library for API calls
+numpy>=1.26.4  # Numerical computing
+lxml>=6.0.0  # XML processing for python-docx
+packaging>=23.2  # Core utilities for Python packages
+typing-extensions>=4.14.1  # Backported typing hints
+typing-inspect>=0.9.0  # Runtime inspection utilities
+typing-inspection>=0.4.1  # Type inspection utilities
+regex>=2024.11.6  # Alternative regex implementation
+tqdm>=4.67.1  # Progress bars
+distro>=1.9.0  # OS detection
+certifi>=2025.7.14  # Mozilla's CA Bundle
+charset-normalizer>=3.4.2  # Character encoding detection
+urllib3>=2.5.0  # HTTP library
+click>=8.2.1  # Command line interface creation
+colorama>=0.4.6  # Cross-platform colored terminal text
+coverage>=7.10.0  # Code coverage measurement
+pluggy>=1.6.0  # Plugin and hook calling mechanisms
+setuptools>=65.5.0  # Package development and distribution
+Pygments>=2.19.2  # Syntax highlighting
+reportlab>=4.4.3  # PDF generation
 
 # System Dependencies Notes:
 # Note: Tesseract OCR engine must be installed separately on the system
