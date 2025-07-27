@@ -5,6 +5,7 @@ import os
 from app.api.routes import health, documents, questions, chat
 from app.core.config import Config
 from app.core.logging_config import logging_config, get_logger, generate_correlation_id, set_correlation_id, set_request_start_time
+from app.api.middleware.request_logging import enhanced_request_logging
 
 # Setup logging first
 logging_config.setup_logging()
@@ -68,6 +69,11 @@ async def add_correlation_id(request: Request, call_next):
     })
     
     return response
+
+@app.middleware("http")
+async def enhanced_http_logging(request: Request, call_next):
+    """Enhanced HTTP request/response logging with detailed information"""
+    return await enhanced_request_logging(request, call_next)
 
 @app.on_event("startup")
 async def startup_event():
