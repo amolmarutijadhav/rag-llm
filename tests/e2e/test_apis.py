@@ -95,7 +95,7 @@ def test_clear_endpoint():
 
 def main():
     """Run all API tests"""
-    print("🚀 Starting RAG LLM API Tests")
+    print("Starting RAG LLM API Tests")
     print("=" * 50)
     
     # Test health endpoints
