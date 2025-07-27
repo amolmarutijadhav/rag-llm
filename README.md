@@ -1,22 +1,27 @@
 # RAG LLM API - Phase 1 MVP
 
-A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud.
+A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud with **full OCR support**.
 
 ## 🚀 Features
 
 - **Document Upload**: Support for PDF, TXT, and DOCX files
+- **OCR Processing**: Extract text from images embedded in PDF and DOCX documents
 - **Text Input**: Add raw text to the knowledge base
 - **Question Answering**: Ask questions and get AI-generated answers
 - **Vector Search**: Semantic search using Qdrant Cloud with robust field handling
 - **RESTful API**: Clean, documented API endpoints
 - **Auto-generated Docs**: Interactive API documentation
 - **Externalized APIs**: Complete URL configuration for all external services
+- **Docker Support**: Multi-stage RHEL 9 Docker build with OCR capabilities
 
 ## 📋 Prerequisites
 
 - Python 3.8+
 - OpenAI API key
 - Qdrant Cloud account (free tier available)
+- **OCR Dependencies** (optional but recommended):
+  - Tesseract OCR Engine
+  - Poppler utilities (for PDF processing)
 
 ## 🛠️ Installation
 
@@ -31,9 +36,22 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
    pip install -r requirements.txt
    ```
 
-3. **Set up environment variables**
+3. **Install OCR dependencies** (optional)
    ```bash
-   cp env.example .env
+   # Windows
+   # Download Tesseract from: https://github.com/UB-Mannheim/tesseract/wiki
+   # Download Poppler from: https://github.com/oschwartz10612/poppler-windows/releases
+   
+   # Linux
+   sudo apt-get install tesseract-ocr poppler-utils
+   
+   # macOS
+   brew install tesseract poppler
+   ```
+
+4. **Set up environment variables**
+   ```bash
+   cp config/env.example .env
    # Edit .env and add your OpenAI API key and Qdrant Cloud credentials
    ```
 
@@ -56,7 +74,7 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 - `GET /health` - Simple health check
 
 ### Document Management
-- `POST /documents/upload` - Upload and process documents
+- `POST /documents/upload` - Upload and process documents (with OCR support)
 - `POST /documents/add-text` - Add raw text to knowledge base
 - `DELETE /documents/clear` - Clear all documents
 
@@ -123,6 +141,10 @@ VECTOR_DISTANCE_METRIC=Cosine
 # LLM Parameters
 LLM_TEMPERATURE=0.1
 LLM_MAX_TOKENS=1000
+
+# OCR Configuration
+TESSERACT_LANG=eng
+OCR_CONFIDENCE_THRESHOLD=60
 
 # FastAPI Application Configuration
 API_TITLE=RAG LLM API

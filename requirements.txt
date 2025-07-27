@@ -17,6 +17,12 @@ qdrant-client>=1.7.0
 pypdf==3.17.1  # Required by PyPDFLoader for PDF processing
 docx2txt==0.9  # Required by Docx2txtLoader for DOCX processing
 
+# Image processing and OCR - For extracting text from images in documents
+pytesseract>=0.3.10  # Python wrapper for Tesseract OCR
+Pillow>=10.0.0  # Image processing library (PIL)
+pdf2image>=1.16.3  # Convert PDF pages to images for OCR
+python-docx>=0.8.11  # For extracting images from DOCX files
+
 # Utilities - Compatible with langchain-openai
 pydantic>=2.6.0
 tiktoken>=0.5.2,<0.6.0
@@ -26,4 +32,11 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx==0.25.0  # Compatible with FastAPI 0.104.1 and TestClient
 pytest-mock>=3.11.0
-pytest-cov>=4.1.0 
+pytest-cov>=4.1.0
+
+# System Dependencies Notes:
+# Note: Tesseract OCR engine must be installed separately on the system
+# Windows: https://github.com/UB-Mannheim/tesseract/wiki
+# Linux: sudo apt-get install tesseract-ocr poppler-utils
+# macOS: brew install tesseract poppler
+# Docker: Included in Dockerfile with RHEL 9 base 

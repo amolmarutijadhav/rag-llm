@@ -1,0 +1,215 @@
+version: '3.8'
+
+services:
+  # RAG LLM API Service
+  rag-llm-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: rag-llm-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Application Configuration
+      - APP_ENV=production
+      - DEBUG=False
+      - HOST=0.0.0.0
+      - PORT=8000
+      
+      # External API Endpoints (configure these for your environment)
+      - EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
+      - VECTOR_COLLECTION_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents
+      - VECTOR_INSERT_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points
+      - VECTOR_SEARCH_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/search
+      - LLM_API_URL=https://api.openai.com/v1/chat/completions
+      
+      # API Authentication (set these in production)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      
+      # Certificate Configuration
+      - CERT_FILE_PATH=/app/certs/certificate.cer
+      - VERIFY_SSL=True
+      - CERT_VERIFY_MODE=auto
+      
+      # Vector Database Configuration
+      - QDRANT_COLLECTION_NAME=documents
+      
+      # AI Model Configuration
+      - EMBEDDING_MODEL=text-embedding-ada-002
+      - LLM_MODEL=gpt-3.5-turbo
+      - VECTOR_SIZE=1536
+      - VECTOR_DISTANCE_METRIC=Cosine
+      
+      # LLM Parameters
+      - LLM_TEMPERATURE=0.1
+      - LLM_MAX_TOKENS=1000
+      
+      # RAG Configuration
+      - RAG_PROMPT_TEMPLATE=You are a helpful AI assistant that answers questions based on the provided context. Use only the information from the context to answer the question. If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:
+      - CONTENT_PREVIEW_LENGTH=200
+      - DEFAULT_TOP_K=3
+      
+      # FastAPI Configuration
+      - API_TITLE=RAG LLM API
+      - API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
+      - API_VERSION=1.0.0
+      
+      # CORS Configuration
+      - CORS_ALLOW_ORIGINS=*
+      - CORS_ALLOW_CREDENTIALS=True
+      - CORS_ALLOW_METHODS=*
+      - CORS_ALLOW_HEADERS=*
+      
+      # HTTP Configuration
+      - REQUEST_TIMEOUT=30
+      - MAX_RETRIES=3
+      
+      # Document Processing Configuration
+      - CHUNK_ID_SEPARATOR=_
+      - DEFAULT_SOURCE_NAME=text_input
+      
+      # OCR Configuration
+      - TESSERACT_LANG=eng
+      - OCR_CONFIDENCE_THRESHOLD=60
+      
+    volumes:
+      # Persistent storage for logs
+      - ./logs:/app/logs
+      # Temporary file storage
+      - ./temp:/app/temp
+      # Certificate storage
+      - ./certs:/app/certs
+      # Environment file
+      - ./.env:/app/.env:ro
+      
+    networks:
+      - rag-network
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Development Service (optional)
+  rag-llm-api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rag-llm-api-dev
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      # Development Configuration
+      - APP_ENV=development
+      - DEBUG=True
+      - HOST=0.0.0.0
+      - PORT=8000
+      
+      # External API Endpoints (configure these for your environment)
+      - EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
+      - VECTOR_COLLECTION_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents
+      - VECTOR_INSERT_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points
+      - VECTOR_SEARCH_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/search
+      - LLM_API_URL=https://api.openai.com/v1/chat/completions
+      
+      # API Authentication (set these in development)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      
+      # Certificate Configuration
+      - CERT_FILE_PATH=/app/certs/certificate.cer
+      - VERIFY_SSL=True
+      - CERT_VERIFY_MODE=auto
+      
+      # Vector Database Configuration
+      - QDRANT_COLLECTION_NAME=documents
+      
+      # AI Model Configuration
+      - EMBEDDING_MODEL=text-embedding-ada-002
+      - LLM_MODEL=gpt-3.5-turbo
+      - VECTOR_SIZE=1536
+      - VECTOR_DISTANCE_METRIC=Cosine
+      
+      # LLM Parameters
+      - LLM_TEMPERATURE=0.1
+      - LLM_MAX_TOKENS=1000
+      
+      # RAG Configuration
+      - RAG_PROMPT_TEMPLATE=You are a helpful AI assistant that answers questions based on the provided context. Use only the information from the context to answer the question. If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:
+      - CONTENT_PREVIEW_LENGTH=200
+      - DEFAULT_TOP_K=3
+      
+      # FastAPI Configuration
+      - API_TITLE=RAG LLM API (Development)
+      - API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
+      - API_VERSION=1.0.0
+      
+      # CORS Configuration
+      - CORS_ALLOW_ORIGINS=*
+      - CORS_ALLOW_CREDENTIALS=True
+      - CORS_ALLOW_METHODS=*
+      - CORS_ALLOW_HEADERS=*
+      
+      # HTTP Configuration
+      - REQUEST_TIMEOUT=30
+      - MAX_RETRIES=3
+      
+      # Document Processing Configuration
+      - CHUNK_ID_SEPARATOR=_
+      - DEFAULT_SOURCE_NAME=text_input
+      
+      # OCR Configuration
+      - TESSERACT_LANG=eng
+      - OCR_CONFIDENCE_THRESHOLD=60
+      
+    volumes:
+      # Mount source code for development
+      - ./app:/app/app
+      - ./config:/app/config
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./docs:/app/docs
+      # Persistent storage
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+      - ./certs:/app/certs
+      - ./htmlcov:/app/htmlcov
+      # Environment file
+      - ./.env:/app/.env:ro
+      
+    networks:
+      - rag-network
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    profiles:
+      - dev
+
+# Networks
+networks:
+  rag-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

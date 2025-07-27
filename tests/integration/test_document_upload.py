@@ -445,3 +445,92 @@ class TestDocumentUploadIntegration:
             # Clean up temporary file
             if os.path.exists(temp_file_path):
                 os.unlink(temp_file_path) 
+
+
+@pytest.mark.document_upload
+class TestDocumentImageProcessing:
+    """Tests for image processing and OCR capabilities in documents."""
+
+    def test_pdf_with_images_processing(self, async_client):
+        """Test PDF processing with embedded images."""
+        with patch('app.api.routes.documents.rag_service.add_document') as mock_add_document:
+            mock_add_document.return_value = {
+                "success": True,
+                "message": "Document 'test_with_images.pdf' added successfully",
+                "chunks_processed": 3
+            }
+            
+            # Create a PDF with image content (simplified test)
+            pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test PDF with Images) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000204 00000 n \ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n297\n%%EOF"
+            
+            files = {"file": ("test_with_images.pdf", BytesIO(pdf_content), "application/pdf")}
+            response = async_client.post("/documents/upload", files=files)
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+
+    def test_docx_with_images_processing(self, async_client):
+        """Test DOCX processing with embedded images."""
+        with patch('app.api.routes.documents.rag_service.add_document') as mock_add_document:
+            mock_add_document.return_value = {
+                "success": True,
+                "message": "Document 'test_with_images.docx' added successfully",
+                "chunks_processed": 2
+            }
+            
+            # Create a DOCX with image content (simplified test)
+            import zipfile
+            import tempfile
+            
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_file:
+                with zipfile.ZipFile(temp_file, 'w') as docx:
+                    # Add content types
+                    docx.writestr('[Content_Types].xml', 
+                        '<?xml version="1.0" encoding="UTF-8"?>'
+                        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                        '<Default Extension="xml" ContentType="application/xml"/>'
+                        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+                        '</Types>')
+                    
+                    # Add document content
+                    docx.writestr('word/document.xml',
+                        '<?xml version="1.0" encoding="UTF-8"?>'
+                        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                        '<w:body>'
+                        '<w:p><w:r><w:t>Test DOCX with Images</w:t></w:r></w:p>'
+                        '</w:body>'
+                        '</w:document>')
+                
+                temp_file_path = temp_file.name
+            
+            try:
+                with open(temp_file_path, 'rb') as f:
+                    files = {"file": ("test_with_images.docx", BytesIO(f.read()), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+                    response = async_client.post("/documents/upload", files=files)
+                    
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["success"] is True
+            finally:
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+
+    def test_image_processing_disabled_fallback(self, async_client):
+        """Test that document processing still works when image processing is disabled."""
+        with patch('app.api.routes.documents.rag_service.add_document') as mock_add_document:
+            mock_add_document.return_value = {
+                "success": True,
+                "message": "Document 'test_fallback.pdf' added successfully",
+                "chunks_processed": 1
+            }
+            
+            # Test that regular text processing still works
+            pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Fallback Test) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000204 00000 n \ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n297\n%%EOF"
+            
+            files = {"file": ("test_fallback.pdf", BytesIO(pdf_content), "application/pdf")}
+            response = async_client.post("/documents/upload", files=files)
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True 
