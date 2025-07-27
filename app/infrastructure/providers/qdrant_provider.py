@@ -20,6 +20,10 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
                 - api_key: Qdrant API key
                 - auth_scheme: Authentication scheme (default: "api_key")
         """
+        # Set default auth scheme for Qdrant
+        if "auth_scheme" not in config:
+            config["auth_scheme"] = "api_key"
+        
         super().__init__(config)
         self.base_url = config.get("base_url")
         self.api_key = config.get("api_key")
@@ -57,7 +61,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
         """
         try:
             collection_url = self._get_collection_url(collection_name)
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             
             # First, try to get the collection to see if it exists
             try:
@@ -103,7 +107,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
             )
             
             payload = {"points": points}
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             points_url = self._get_points_url(collection_name)
             
             await self._make_request("PUT", points_url, headers, json_data=payload)
@@ -132,7 +136,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
                 "with_vector": False
             }
             
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             search_url = self._get_search_url(collection_name)
             
             response = await self._make_request("POST", search_url, headers, json_data=payload)
@@ -154,7 +158,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
         """
         try:
             collection_url = self._get_collection_url(collection_name)
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             
             response = self._make_sync_request("GET", collection_url, headers)
             data = response.json()
@@ -185,7 +189,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
         """
         try:
             collection_url = self._get_collection_url(collection_name)
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             
             self._make_sync_request("DELETE", collection_url, headers)
             return True
@@ -206,7 +210,7 @@ class QdrantVectorStoreProvider(BaseProvider, VectorStoreProvider):
         """
         try:
             delete_url = self._get_delete_url(collection_name)
-            headers = self._get_headers(self.api_key, auth_scheme="api_key")
+            headers = self._get_headers(self.api_key)
             
             # Filter that matches all points (empty filter matches everything)
             payload = {"filter": {}}
