@@ -7,6 +7,7 @@ import time
 import json
 import asyncio
 from typing import Dict, Any, Optional
+from dataclasses import asdict
 from app.core.config import Config
 from app.core.logging_config import (
     get_logger, get_correlation_id, ExternalAPICall, 
