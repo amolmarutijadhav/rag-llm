@@ -1,7 +1,7 @@
 import httpx
 import json
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from app.core.config import Config
 
 class ExternalAPIService:
@@ -136,32 +136,8 @@ class ExternalAPIService:
         except Exception as e:
             raise Exception(f"Vector search API error: {str(e)}")
     
-    async def call_llm(self, messages: List[Dict[str, str]]) -> str:
-        """Make LLM call using external API"""
-        try:
-            payload = {
-                "model": Config.LLM_MODEL,
-                "messages": messages,
-                "temperature": Config.LLM_TEMPERATURE,
-                "max_tokens": Config.LLM_MAX_TOKENS
-            }
-            
-            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
-                response = await client.post(
-                    Config.LLM_API_URL,
-                    headers=self.openai_headers,
-                    json=payload
-                )
-                response.raise_for_status()
-                
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
-                
-        except Exception as e:
-            raise Exception(f"LLM API error: {str(e)}")
-    
-    async def call_openai_completions(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Make OpenAI chat completions call with full request"""
+    async def call_llm_api(self, request: Dict[str, Any], return_full_response: bool = False) -> Union[str, Dict[str, Any]]:
+        """Make LLM call using external API with flexible return format"""
         try:
             async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
                 response = await client.post(
@@ -170,10 +146,30 @@ class ExternalAPIService:
                     json=request
                 )
                 response.raise_for_status()
-                return response.json()
                 
+                data = response.json()
+                
+                if return_full_response:
+                    return data
+                else:
+                    return data["choices"][0]["message"]["content"]
+                    
         except Exception as e:
-            raise Exception(f"OpenAI API error: {str(e)}")
+            raise Exception(f"LLM API error: {str(e)}")
+    
+    async def call_llm(self, messages: List[Dict[str, str]]) -> str:
+        """Make LLM call using external API - returns content string only"""
+        payload = {
+            "model": Config.LLM_MODEL,
+            "messages": messages,
+            "temperature": Config.LLM_TEMPERATURE,
+            "max_tokens": Config.LLM_MAX_TOKENS
+        }
+        return await self.call_llm_api(payload, return_full_response=False)
+    
+    async def call_openai_completions(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Make OpenAI chat completions call with full request - returns full response"""
+        return await self.call_llm_api(request, return_full_response=True)
     
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get collection statistics using external API"""

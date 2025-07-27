@@ -97,14 +97,17 @@ class TestRAGService:
     @pytest.mark.asyncio
     async def test_add_document_success(self, rag_service, mock_document_loader, mock_vector_store):
         """Test successful document addition."""
-        # Mock document loading
-        mock_document_loader.load_document.return_value = [
-            {
-                "id": "doc1",
-                "content": "Python is a programming language",
-                "metadata": {"source": "test.txt"}
-            }
-        ]
+        # Mock document loading - returns tuple (documents, ocr_text)
+        mock_document_loader.load_document.return_value = (
+            [
+                {
+                    "id": "doc1",
+                    "content": "Python is a programming language",
+                    "metadata": {"source": "test.txt"}
+                }
+            ],
+            ""  # No OCR text for this test
+        )
         
         result = await rag_service.add_document("test.txt")
         
@@ -124,9 +127,11 @@ class TestRAGService:
     @pytest.mark.asyncio
     async def test_add_document_vector_store_error(self, rag_service, mock_document_loader, mock_vector_store):
         """Test document addition when vector store fails."""
-        mock_document_loader.load_document.return_value = [
-            {"id": "doc1", "content": "test", "metadata": {}}
-        ]
+        # Mock document loading - returns tuple (documents, ocr_text)
+        mock_document_loader.load_document.return_value = (
+            [{"id": "doc1", "content": "test", "metadata": {}}],
+            ""  # No OCR text for this test
+        )
         mock_vector_store.add_documents.return_value = False
         
         result = await rag_service.add_document("test.txt")
@@ -224,9 +229,10 @@ class TestRAGServiceIntegration:
             mock_vs_class.return_value = mock_vector_store
             
             mock_document_loader = Mock()
-            mock_document_loader.load_document = Mock(return_value=[
-                {"id": "doc1", "content": "Python info", "metadata": {}}
-            ])
+            mock_document_loader.load_document = Mock(return_value=(
+                [{"id": "doc1", "content": "Python info", "metadata": {}}],
+                ""  # No OCR text for this test
+            ))
             mock_dl_class.return_value = mock_document_loader
             
             mock_api_service = Mock()
