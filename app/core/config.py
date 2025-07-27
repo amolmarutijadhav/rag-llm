@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from typing import Dict, Any
 from app.utils.cert_utils import CertificateManager
 
 # Load environment variables
@@ -92,6 +93,11 @@ class Config:
     CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR = int(os.getenv("CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR", "5"))
     ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING = os.getenv("ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING", "True").lower() == "true"
     
+    # Provider Configuration - New plugin architecture support
+    PROVIDER_EMBEDDING_TYPE = os.getenv("PROVIDER_EMBEDDING_TYPE", "openai")
+    PROVIDER_LLM_TYPE = os.getenv("PROVIDER_LLM_TYPE", "openai")
+    PROVIDER_VECTOR_STORE_TYPE = os.getenv("PROVIDER_VECTOR_STORE_TYPE", "qdrant")
+    
     @classmethod
     def get_ssl_config(cls):
         """Get SSL configuration using CertificateManager"""
@@ -103,4 +109,65 @@ class Config:
             cert_path=cls.CERT_FILE_PATH,
             verify_ssl=cls.VERIFY_SSL
         )
-        return ssl_config 
+        return ssl_config
+    
+    @classmethod
+    def get_embedding_provider_config(cls) -> Dict[str, Any]:
+        """
+        Get configuration for embedding provider.
+        
+        Returns:
+            Configuration dictionary for embedding provider
+        """
+        return {
+            "type": cls.PROVIDER_EMBEDDING_TYPE,
+            "api_url": cls.EMBEDDING_API_URL,
+            "api_key": cls.OPENAI_API_KEY,
+            "model": cls.EMBEDDING_MODEL,
+            "auth_scheme": "bearer",
+            "timeout": cls.REQUEST_TIMEOUT,
+            "max_retries": cls.MAX_RETRIES
+        }
+    
+    @classmethod
+    def get_llm_provider_config(cls) -> Dict[str, Any]:
+        """
+        Get configuration for LLM provider.
+        
+        Returns:
+            Configuration dictionary for LLM provider
+        """
+        return {
+            "type": cls.PROVIDER_LLM_TYPE,
+            "api_url": cls.LLM_API_URL,
+            "api_key": cls.OPENAI_API_KEY,
+            "default_model": cls.LLM_MODEL,
+            "default_temperature": cls.LLM_TEMPERATURE,
+            "default_max_tokens": cls.LLM_MAX_TOKENS,
+            "auth_scheme": "bearer",
+            "timeout": cls.REQUEST_TIMEOUT,
+            "max_retries": cls.MAX_RETRIES
+        }
+    
+    @classmethod
+    def get_vector_store_provider_config(cls) -> Dict[str, Any]:
+        """
+        Get configuration for vector store provider.
+        
+        Returns:
+            Configuration dictionary for vector store provider
+        """
+        # Extract base URL from collection URL for Qdrant
+        base_url = cls.VECTOR_COLLECTION_URL.replace(f"/collections/{cls.QDRANT_COLLECTION_NAME}", "")
+        
+        return {
+            "type": cls.PROVIDER_VECTOR_STORE_TYPE,
+            "base_url": base_url,
+            "api_key": cls.QDRANT_API_KEY,
+            "auth_scheme": "api_key",
+            "timeout": cls.REQUEST_TIMEOUT,
+            "max_retries": cls.MAX_RETRIES,
+            "collection_name": cls.QDRANT_COLLECTION_NAME,
+            "vector_size": cls.VECTOR_SIZE,
+            "distance_metric": cls.VECTOR_DISTANCE_METRIC
+        } 

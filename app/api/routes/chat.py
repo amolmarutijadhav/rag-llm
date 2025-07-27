@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 from app.domain.services.rag_service import RAGService
+from app.infrastructure.providers import get_llm_provider
 from app.core.config import Config
 from app.utils.message_utils import (
     extract_last_user_message,
@@ -41,11 +42,13 @@ async def rag_chat_completions_multi_agent(request: Dict[str, Any]):
         # Enhance messages while preserving agent persona
         enhanced_messages = enhance_messages_with_rag(messages, relevant_docs)
         
-        # Forward to OpenAI
+        # Forward to LLM provider using plugin architecture
         modified_request = request.copy()
         modified_request["messages"] = enhanced_messages
         
-        response = await rag_service.api_service.call_openai_completions(modified_request)
+        # Get LLM provider from service locator
+        llm_provider = get_llm_provider()
+        response = await llm_provider.call_llm_api(modified_request, return_full_response=True)
         
         # Add metadata for debugging
         response["rag_metadata"] = {

@@ -2,23 +2,32 @@ import uuid
 import json
 from typing import List, Dict, Any, Optional
 from app.core.config import Config
-from app.infrastructure.external.external_api_service import ExternalAPIService
+from app.domain.interfaces.providers import EmbeddingProvider, VectorStoreProvider
+from app.infrastructure.providers import get_embedding_provider, get_vector_store_provider
 
 class VectorStore:
-    """Handles vector storage and retrieval using external APIs"""
+    """Handles vector storage and retrieval using plugin architecture"""
     
-    def __init__(self):
-        self.api_service = ExternalAPIService()
+    def __init__(self, 
+                 embedding_provider: Optional[EmbeddingProvider] = None,
+                 vector_store_provider: Optional[VectorStoreProvider] = None):
+        """
+        Initialize VectorStore with optional provider injection for testing.
+        If providers are not provided, they will be obtained from the service locator.
+        """
+        # Use injected providers or get from service locator
+        self.embedding_provider = embedding_provider or get_embedding_provider()
+        self.vector_store_provider = vector_store_provider or get_vector_store_provider()
         self.collection_name = Config.QDRANT_COLLECTION_NAME
     
     async def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
-        """Add documents to the vector store using external APIs"""
+        """Add documents to the vector store using plugin architecture"""
         try:
             # Extract text content for embedding
             texts = [doc["content"] for doc in documents]
             
-            # Get embeddings using external API
-            embeddings = await self.api_service.get_embeddings(texts)
+            # Get embeddings using plugin architecture
+            embeddings = await self.embedding_provider.get_embeddings(texts)
             
             # Prepare points for vector database
             points = []
@@ -33,8 +42,8 @@ class VectorStore:
                 }
                 points.append(point)
             
-            # Insert vectors using external API
-            success = await self.api_service.insert_vectors(points)
+            # Insert vectors using plugin architecture
+            success = await self.vector_store_provider.insert_vectors(points, self.collection_name)
             return success
             
         except Exception as e:
@@ -42,17 +51,17 @@ class VectorStore:
             return False
     
     async def search(self, query: str, top_k: int = None) -> List[Dict[str, Any]]:
-        """Search for similar documents using external APIs"""
+        """Search for similar documents using plugin architecture"""
         if top_k is None:
             top_k = Config.TOP_K_RESULTS
         
         try:
-            # Get query embedding
-            query_embeddings = await self.api_service.get_embeddings([query])
+            # Get query embedding using plugin architecture
+            query_embeddings = await self.embedding_provider.get_embeddings([query])
             query_vector = query_embeddings[0]
             
-            # Search vectors using external API
-            results = await self.api_service.search_vectors(query_vector, top_k)
+            # Search vectors using plugin architecture
+            results = await self.vector_store_provider.search_vectors(query_vector, top_k, self.collection_name)
             
             # Format results with better error handling
             formatted_results = []
@@ -94,7 +103,7 @@ class VectorStore:
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the vector store"""
         try:
-            return self.api_service.get_collection_stats()
+            return self.vector_store_provider.get_collection_stats(self.collection_name)
         except Exception as e:
             print(f"Error getting collection stats: {e}")
             return {"total_documents": 0, "collection_name": self.collection_name}
@@ -102,7 +111,7 @@ class VectorStore:
     def delete_collection(self) -> bool:
         """Delete the entire collection"""
         try:
-            return self.api_service.delete_collection()
+            return self.vector_store_provider.delete_collection(self.collection_name)
         except Exception as e:
             print(f"Error deleting collection: {e}")
             return False
@@ -110,7 +119,7 @@ class VectorStore:
     def clear_all_points(self) -> bool:
         """Clear all points in the collection without deleting the collection itself"""
         try:
-            return self.api_service.delete_all_points()
+            return self.vector_store_provider.delete_all_points(self.collection_name)
         except Exception as e:
             print(f"Error clearing all points: {e}")
             return False 
