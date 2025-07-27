@@ -19,15 +19,10 @@ Welcome to the comprehensive documentation for the RAG LLM API - a production-re
 - [Deployment](development/deployment.md) - Deployment instructions
 
 ### **Implementation Guides** (`/implementation/`)
-- [RAG Implementation](implementation/rag_implementation.md) - RAG system details
-- [Chat Completions](implementation/chat_completions.md) - Multi-agentic chat
-- [Vector Store](implementation/vector_store.md) - Vector database integration
-- [External APIs](implementation/external_apis.md) - External service integration
+- [RAG Chat Completions](implementation/RAG_CHAT_COMPLETIONS_IMPLEMENTATION.md) - RAG-enhanced chat implementation
 
 ### **Tutorials** (`/tutorials/`)
 - [Getting Started](tutorials/getting_started.md) - Quick start guide
-- [Multi-Agent Setup](tutorials/multi_agent_setup.md) - Multi-agentic configuration
-- [Custom Models](tutorials/custom_models.md) - Custom model integration
 - [Troubleshooting](tutorials/troubleshooting.md) - Common issues and solutions
 
 ### **Changelog** (`/changelog/`)
