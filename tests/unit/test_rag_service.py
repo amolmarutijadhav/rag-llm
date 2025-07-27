@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch, AsyncMock
 from app.domain.services.rag_service import RAGService
 from app.infrastructure.vector_store.vector_store import VectorStore
 from app.infrastructure.document_processing.loader import DocumentLoader
+from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider, VectorStoreProvider
 
 
 @pytest.mark.unit
@@ -25,32 +26,67 @@ class TestRAGService:
     def mock_document_loader(self):
         """Mock document loader."""
         mock = Mock(spec=DocumentLoader)
-        mock.load_document = Mock(return_value=[])
+        mock.load_document = Mock(return_value=([], None))  # (documents, ocr_text)
         mock.load_text = Mock(return_value=[])
         return mock
 
     @pytest.fixture
-    def mock_api_service(self):
-        """Mock external API service."""
-        mock = Mock()
-        mock.call_llm = AsyncMock(return_value="Test answer")
+    def mock_embedding_provider(self):
+        """Mock embedding provider."""
+        mock = Mock(spec=EmbeddingProvider)
+        mock.get_embeddings = AsyncMock(return_value=[[0.1, 0.2, 0.3]])
+        mock.get_model_info = Mock(return_value={
+            "provider": "test",
+            "model": "test-model",
+            "vector_size": 1536
+        })
         return mock
 
     @pytest.fixture
-    def rag_service(self, mock_vector_store, mock_document_loader, mock_api_service):
+    def mock_llm_provider(self):
+        """Mock LLM provider."""
+        mock = Mock(spec=LLMProvider)
+        mock.call_llm = AsyncMock(return_value="Test answer")
+        mock.call_llm_api = AsyncMock(return_value="Test answer")
+        mock.get_model_info = Mock(return_value={
+            "provider": "test",
+            "default_model": "test-model"
+        })
+        return mock
+
+    @pytest.fixture
+    def mock_vector_store_provider(self):
+        """Mock vector store provider."""
+        mock = Mock(spec=VectorStoreProvider)
+        mock.insert_vectors = AsyncMock(return_value=True)
+        mock.search_vectors = AsyncMock(return_value=[])
+        mock.get_collection_stats = Mock(return_value={
+            "total_documents": 0,
+            "collection_name": "test"
+        })
+        mock.create_collection_if_not_exists = AsyncMock(return_value=True)
+        mock.delete_collection = Mock(return_value=True)
+        mock.delete_all_points = Mock(return_value=True)
+        return mock
+
+    @pytest.fixture
+    def rag_service(self, mock_vector_store, mock_document_loader, 
+                   mock_embedding_provider, mock_llm_provider, mock_vector_store_provider):
         """RAG service with mocked dependencies."""
         with patch('app.domain.services.rag_service.VectorStore', return_value=mock_vector_store), \
-             patch('app.domain.services.rag_service.DocumentLoader', return_value=mock_document_loader), \
-             patch('app.domain.services.rag_service.ExternalAPIService', return_value=mock_api_service):
-            service = RAGService()
+             patch('app.domain.services.rag_service.DocumentLoader', return_value=mock_document_loader):
+            service = RAGService(
+                embedding_provider=mock_embedding_provider,
+                llm_provider=mock_llm_provider,
+                vector_store_provider=mock_vector_store_provider
+            )
             # Replace the actual instances with mocks
             service.vector_store = mock_vector_store
             service.document_loader = mock_document_loader
-            service.api_service = mock_api_service
             return service
 
     @pytest.mark.asyncio
-    async def test_ask_question_success(self, rag_service, mock_vector_store, mock_api_service):
+    async def test_ask_question_success(self, rag_service, mock_vector_store, mock_llm_provider):
         """Test successful question asking."""
         # Mock search results
         mock_vector_store.search.return_value = [
@@ -62,7 +98,7 @@ class TestRAGService:
         ]
         
         # Mock LLM response
-        mock_api_service.call_llm.return_value = "Python was created by Guido van Rossum."
+        mock_llm_provider.call_llm.return_value = "Python was created by Guido van Rossum."
         
         result = await rag_service.ask_question("Who created Python?", top_k=3)
         
@@ -82,13 +118,13 @@ class TestRAGService:
         assert len(result["sources"]) == 0
 
     @pytest.mark.asyncio
-    async def test_ask_question_llm_error(self, rag_service, mock_vector_store, mock_api_service):
+    async def test_ask_question_llm_error(self, rag_service, mock_vector_store, mock_llm_provider):
         """Test question asking when LLM fails."""
         mock_vector_store.search.return_value = [
             {"content": "test", "metadata": {}, "score": 0.9}
         ]
         
-        mock_api_service.call_llm.side_effect = Exception("LLM error")
+        mock_llm_provider.call_llm.side_effect = Exception("LLM error")
         
         result = await rag_service.ask_question("test", top_k=3)
         assert result["success"] == False
@@ -98,22 +134,16 @@ class TestRAGService:
     async def test_add_document_success(self, rag_service, mock_document_loader, mock_vector_store):
         """Test successful document addition."""
         # Mock document loading - returns tuple (documents, ocr_text)
-        mock_document_loader.load_document.return_value = (
-            [
-                {
-                    "id": "doc1",
-                    "content": "Python is a programming language",
-                    "metadata": {"source": "test.txt"}
-                }
-            ],
-            ""  # No OCR text for this test
-        )
+        mock_document_loader.load_document.return_value = ([
+            {"content": "test content", "metadata": {"source": "test.txt"}}
+        ], "extracted ocr text")
         
         result = await rag_service.add_document("test.txt")
         
         assert result["success"] == True
+        assert "added successfully" in result["message"]
         assert result["chunks_processed"] == 1
-        assert "test.txt" in result["message"]
+        assert result["extracted_text"] == "extracted ocr text"
 
     @pytest.mark.asyncio
     async def test_add_document_loading_error(self, rag_service, mock_document_loader):
@@ -121,17 +151,16 @@ class TestRAGService:
         mock_document_loader.load_document.side_effect = Exception("Loading error")
         
         result = await rag_service.add_document("test.txt")
+        
         assert result["success"] == False
         assert "Error processing document" in result["message"]
 
     @pytest.mark.asyncio
     async def test_add_document_vector_store_error(self, rag_service, mock_document_loader, mock_vector_store):
         """Test document addition when vector store fails."""
-        # Mock document loading - returns tuple (documents, ocr_text)
-        mock_document_loader.load_document.return_value = (
-            [{"id": "doc1", "content": "test", "metadata": {}}],
-            ""  # No OCR text for this test
-        )
+        mock_document_loader.load_document.return_value = ([
+            {"content": "test content", "metadata": {"source": "test.txt"}}
+        ], None)
         mock_vector_store.add_documents.return_value = False
         
         result = await rag_service.add_document("test.txt")
@@ -142,44 +171,36 @@ class TestRAGService:
     @pytest.mark.asyncio
     async def test_add_text_success(self, rag_service, mock_document_loader, mock_vector_store):
         """Test successful text addition."""
-        # Mock text loading
         mock_document_loader.load_text.return_value = [
-            {
-                "id": "text1",
-                "content": "Python is a programming language",
-                "metadata": {"source": "python_info"}
-            }
+            {"content": "test content", "metadata": {"source": "test_input"}}
         ]
         
-        result = await rag_service.add_text(
-            "Python is a programming language",
-            "python_info"
-        )
+        result = await rag_service.add_text("test content", "test_input")
         
         assert result["success"] == True
-        assert "python_info" in result["message"]
-        assert result["chunks_processed"] > 0
+        assert "added successfully" in result["message"]
+        assert result["chunks_processed"] == 1
 
     @pytest.mark.asyncio
     async def test_add_text_empty(self, rag_service):
         """Test text addition with empty text."""
-        result = await rag_service.add_text("", "empty")
+        result = await rag_service.add_text("", "test_input")
         
         assert result["success"] == False
-        assert "Error processing text" in result["message"]
+        assert "Text cannot be empty" in result["message"]
 
-    def test_get_stats_success(self, rag_service, mock_vector_store):
+    def test_get_stats_success(self, rag_service, mock_vector_store, mock_embedding_provider, mock_llm_provider):
         """Test successful stats retrieval."""
         result = rag_service.get_stats()
         
         assert result["success"] == True
         assert "vector_store" in result
-        assert "supported_formats" in result
-        assert "chunk_size" in result
+        assert "embedding_provider" in result
+        assert "llm_provider" in result
 
     def test_get_stats_vector_store_error(self, rag_service, mock_vector_store):
         """Test stats retrieval when vector store fails."""
-        mock_vector_store.get_collection_stats.side_effect = Exception("Vector store error")
+        mock_vector_store.get_collection_stats.side_effect = Exception("Stats error")
         
         result = rag_service.get_stats()
         
@@ -188,12 +209,10 @@ class TestRAGService:
 
     def test_clear_knowledge_base_success(self, rag_service, mock_vector_store):
         """Test successful knowledge base clearing."""
-        mock_vector_store.clear_all_points.return_value = True
-        
         result = rag_service.clear_knowledge_base()
         
         assert result["success"] == True
-        assert "Knowledge base cleared" in result["message"]
+        assert "cleared successfully" in result["message"]
 
     def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
         """Test knowledge base clearing when it fails."""
@@ -207,46 +226,36 @@ class TestRAGService:
 
 @pytest.mark.unit
 class TestRAGServiceIntegration:
-    """Test RAG service integration scenarios."""
+    """Integration tests for RAG service."""
 
     @pytest.mark.asyncio
     async def test_full_rag_workflow(self):
-        """Test complete RAG workflow."""
-        with patch('app.domain.services.rag_service.VectorStore') as mock_vs_class, \
-             patch('app.domain.services.rag_service.DocumentLoader') as mock_dl_class, \
-             patch('app.domain.services.rag_service.ExternalAPIService') as mock_api_class:
-            
-            # Setup mocks
-            mock_vector_store = Mock()
-            mock_vector_store.add_documents = AsyncMock(return_value=True)
-            mock_vector_store.search = AsyncMock(return_value=[
-                {"content": "Python info", "metadata": {}, "score": 0.9}
-            ])
-            mock_vector_store.get_collection_stats = Mock(return_value={
-                "total_documents": 1,
-                "collection_name": "test"
-            })
-            mock_vs_class.return_value = mock_vector_store
-            
-            mock_document_loader = Mock()
-            mock_document_loader.load_document = Mock(return_value=(
-                [{"id": "doc1", "content": "Python info", "metadata": {}}],
-                ""  # No OCR text for this test
-            ))
-            mock_dl_class.return_value = mock_document_loader
-            
-            mock_api_service = Mock()
-            mock_api_service.call_llm = AsyncMock(return_value="Python is a programming language")
-            mock_api_class.return_value = mock_api_service
-            
-            # Create service and test workflow
-            service = RAGService()
-            
-            # Test document addition
-            result = await service.add_document("test.txt")
-            assert result["success"] == True
-            
-            # Test question asking
-            result = await service.ask_question("What is Python?")
-            assert result["success"] == True
-            assert "Python" in result["answer"] 
+        """Test complete RAG workflow with mocked providers."""
+        # Create mock providers
+        mock_embedding_provider = Mock(spec=EmbeddingProvider)
+        mock_embedding_provider.get_embeddings = AsyncMock(return_value=[[0.1, 0.2, 0.3]])
+        mock_embedding_provider.get_model_info = Mock(return_value={"provider": "test"})
+        
+        mock_llm_provider = Mock(spec=LLMProvider)
+        mock_llm_provider.call_llm = AsyncMock(return_value="Test answer")
+        mock_llm_provider.get_model_info = Mock(return_value={"provider": "test"})
+        
+        mock_vector_store_provider = Mock(spec=VectorStoreProvider)
+        mock_vector_store_provider.insert_vectors = AsyncMock(return_value=True)
+        mock_vector_store_provider.search_vectors = AsyncMock(return_value=[
+            {"payload": {"content": "test content"}, "score": 0.9}
+        ])
+        mock_vector_store_provider.get_collection_stats = Mock(return_value={"total_documents": 1})
+        
+        # Create RAG service with mock providers
+        rag_service = RAGService(
+            embedding_provider=mock_embedding_provider,
+            llm_provider=mock_llm_provider,
+            vector_store_provider=mock_vector_store_provider
+        )
+        
+        # Test the workflow
+        result = await rag_service.ask_question("test question")
+        
+        assert result["success"] == True
+        assert "Test answer" in result["answer"] 
