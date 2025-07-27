@@ -1,14 +1,16 @@
 """
-OpenAI provider implementations for embedding and LLM services.
+OpenAI provider implementations for embedding and LLM services with enhanced logging.
 """
 
 from typing import List, Dict, Any, Union
 from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider
-from .base_provider import BaseProvider
+from .enhanced_base_provider import EnhancedBaseProvider
+from app.core.logging_config import get_logger
 
+logger = get_logger(__name__)
 
-class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
-    """OpenAI embedding service provider."""
+class OpenAIEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
+    """OpenAI embedding service provider with enhanced logging."""
     
     def __init__(self, config: Dict[str, Any]):
         """
@@ -21,6 +23,8 @@ class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
                 - model: Embedding model name
                 - auth_scheme: Authentication scheme (default: "bearer")
         """
+        # Add provider name to config for logging
+        config["provider_name"] = "openai_embeddings"
         super().__init__(config)
         self.api_url = config.get("api_url", "https://api.openai.com/v1/embeddings")
         self.api_key = config.get("api_key")
@@ -28,10 +32,19 @@ class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
         
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
+        
+        logger.info("OpenAI Embedding Provider initialized", extra={
+            'extra_fields': {
+                'event_type': 'provider_initialized',
+                'provider': 'openai_embeddings',
+                'model': self.model,
+                'api_url': self.api_url
+            }
+        })
     
     async def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Get embeddings for text chunks using OpenAI API.
+        Get embeddings for text chunks using OpenAI API with enhanced logging.
         
         Args:
             texts: List of text strings to embed
@@ -42,6 +55,15 @@ class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
         Raises:
             Exception: If embedding generation fails
         """
+        logger.debug(f"Getting embeddings for {len(texts)} texts", extra={
+            'extra_fields': {
+                'event_type': 'embedding_request_start',
+                'provider': 'openai_embeddings',
+                'text_count': len(texts),
+                'model': self.model
+            }
+        })
+        
         try:
             payload = {
                 "input": texts,
@@ -52,9 +74,30 @@ class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
             response = await self._make_request("POST", self.api_url, headers, json_data=payload)
             
             data = response.json()
-            return [item["embedding"] for item in data["data"]]
+            embeddings = [item["embedding"] for item in data["data"]]
+            
+            logger.info(f"Successfully generated embeddings", extra={
+                'extra_fields': {
+                    'event_type': 'embedding_request_success',
+                    'provider': 'openai_embeddings',
+                    'text_count': len(texts),
+                    'embedding_count': len(embeddings),
+                    'model': self.model
+                }
+            })
+            
+            return embeddings
             
         except Exception as e:
+            logger.error(f"Failed to generate embeddings", extra={
+                'extra_fields': {
+                    'event_type': 'embedding_request_failure',
+                    'provider': 'openai_embeddings',
+                    'text_count': len(texts),
+                    'model': self.model,
+                    'error': str(e)
+                }
+            })
             raise Exception(f"OpenAI embedding API error: {str(e)}")
     
     def get_model_info(self) -> Dict[str, Any]:
@@ -72,8 +115,8 @@ class OpenAIEmbeddingProvider(BaseProvider, EmbeddingProvider):
         }
 
 
-class OpenAILLMProvider(BaseProvider, LLMProvider):
-    """OpenAI LLM service provider."""
+class OpenAILLMProvider(EnhancedBaseProvider, LLMProvider):
+    """OpenAI LLM service provider with enhanced logging."""
     
     def __init__(self, config: Dict[str, Any]):
         """
@@ -88,6 +131,8 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
                 - default_max_tokens: Default max tokens
                 - auth_scheme: Authentication scheme (default: "bearer")
         """
+        # Add provider name to config for logging
+        config["provider_name"] = "openai_llm"
         super().__init__(config)
         self.api_url = config.get("api_url", "https://api.openai.com/v1/chat/completions")
         self.api_key = config.get("api_key")
@@ -97,11 +142,20 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
         
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
+        
+        logger.info("OpenAI LLM Provider initialized", extra={
+            'extra_fields': {
+                'event_type': 'provider_initialized',
+                'provider': 'openai_llm',
+                'default_model': self.default_model,
+                'api_url': self.api_url
+            }
+        })
     
     async def call_llm(self, messages: List[Dict[str, str]], model: str = None, 
                       temperature: float = None, max_tokens: int = None) -> str:
         """
-        Make a simple LLM call and return the content string.
+        Make a simple LLM call and return the content string with enhanced logging.
         
         Args:
             messages: List of message dictionaries with 'role' and 'content'
@@ -117,6 +171,17 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
         temperature = temperature if temperature is not None else self.default_temperature
         max_tokens = max_tokens if max_tokens is not None else self.default_max_tokens
         
+        logger.debug(f"Making LLM call", extra={
+            'extra_fields': {
+                'event_type': 'llm_request_start',
+                'provider': 'openai_llm',
+                'model': model,
+                'message_count': len(messages),
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+        })
+        
         payload = {
             "model": model,
             "messages": messages,
@@ -128,7 +193,7 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
     
     async def call_llm_api(self, request: Dict[str, Any], return_full_response: bool = False) -> Union[str, Dict[str, Any]]:
         """
-        Make a flexible LLM API call.
+        Make a flexible LLM API call with enhanced logging.
         
         Args:
             request: Complete request dictionary
@@ -137,6 +202,15 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
         Returns:
             Either content string or full response dictionary
         """
+        logger.debug(f"Making LLM API call", extra={
+            'extra_fields': {
+                'event_type': 'llm_api_request_start',
+                'provider': 'openai_llm',
+                'model': request.get('model'),
+                'return_full_response': return_full_response
+            }
+        })
+        
         try:
             headers = self._get_headers(self.api_key)
             response = await self._make_request("POST", self.api_url, headers, json_data=request)
@@ -144,11 +218,37 @@ class OpenAILLMProvider(BaseProvider, LLMProvider):
             data = response.json()
             
             if return_full_response:
+                logger.info(f"LLM API call successful (full response)", extra={
+                    'extra_fields': {
+                        'event_type': 'llm_api_request_success',
+                        'provider': 'openai_llm',
+                        'model': request.get('model'),
+                        'response_type': 'full'
+                    }
+                })
                 return data
             else:
-                return data["choices"][0]["message"]["content"]
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                logger.info(f"LLM API call successful", extra={
+                    'extra_fields': {
+                        'event_type': 'llm_api_request_success',
+                        'provider': 'openai_llm',
+                        'model': request.get('model'),
+                        'response_type': 'content',
+                        'content_length': len(content)
+                    }
+                })
+                return content
                 
         except Exception as e:
+            logger.error(f"LLM API call failed", extra={
+                'extra_fields': {
+                    'event_type': 'llm_api_request_failure',
+                    'provider': 'openai_llm',
+                    'model': request.get('model'),
+                    'error': str(e)
+                }
+            })
             raise Exception(f"OpenAI LLM API error: {str(e)}")
     
     def get_model_info(self) -> Dict[str, Any]:
