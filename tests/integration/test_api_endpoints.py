@@ -23,15 +23,15 @@ class TestAPIEndpoints:
         response = async_client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "running"
+        assert data["status"] == "healthy"
         assert "version" in data
 
     @pytest.mark.rag
-    @patch('app.main.rag_service')
-    def test_ask_question_success(self, mock_rag_service, async_client):
+    @patch('app.api.routes.questions.rag_service.ask_question')
+    def test_ask_question_success(self, mock_ask_question, async_client):
         """Test successful question asking."""
         # Mock RAG service response
-        mock_rag_service.ask_question.return_value = {
+        mock_ask_question.return_value = {
             "success": True,
             "answer": "Python was created by Guido van Rossum.",
             "sources": [
@@ -43,7 +43,7 @@ class TestAPIEndpoints:
             ]
         }
 
-        response = async_client.post("/ask", json={
+        response = async_client.post("/questions/ask", json={
             "question": "Who created Python?",
             "top_k": 3
         })
@@ -57,24 +57,24 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_ask_question_invalid_request(self, async_client):
         """Test question asking with invalid request."""
-        response = async_client.post("/ask", json={
+        response = async_client.post("/questions/ask", json={
             "invalid_field": "test"
         })
 
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
-    @patch('app.main.rag_service')
-    def test_ask_question_service_error(self, mock_rag_service, async_client):
+    @patch('app.api.routes.questions.rag_service.ask_question')
+    def test_ask_question_service_error(self, mock_ask_question, async_client):
         """Test question asking with service error."""
         # Mock RAG service error
-        mock_rag_service.ask_question.return_value = {
+        mock_ask_question.return_value = {
             "success": False,
             "answer": "Error processing request",
             "sources": []
         }
 
-        response = async_client.post("/ask", json={
+        response = async_client.post("/questions/ask", json={
             "question": "Test question?"
         })
 
@@ -84,13 +84,13 @@ class TestAPIEndpoints:
         assert "Error processing request" in data["answer"]
 
     @pytest.mark.rag
-    @patch('app.main.rag_service')
-    def test_add_document_success(self, mock_rag_service, async_client):
+    @patch('app.api.routes.documents.rag_service.add_document')
+    def test_add_document_success(self, mock_add_document, async_client):
         """Test successful document upload."""
         # Mock RAG service response
-        mock_rag_service.add_document.return_value = {
+        mock_add_document.return_value = {
             "success": True,
-            "message": "Document uploaded successfully",
+            "message": "Document 'test.txt' added successfully",
             "chunks_processed": 5
         }
 
@@ -99,12 +99,12 @@ class TestAPIEndpoints:
         file_content = b"This is a test document content."
         files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
 
-        response = async_client.post("/upload", files=files)
+        response = async_client.post("/documents/upload", files=files)
 
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert "uploaded successfully" in data["message"]
+        assert "added successfully" in data["message"]
 
     @pytest.mark.rag
     def test_add_document_invalid_format(self, async_client):
@@ -114,14 +114,14 @@ class TestAPIEndpoints:
         file_content = b"This is a test document content."
         files = {"file": ("test.xyz", BytesIO(file_content), "application/octet-stream")}
 
-        response = async_client.post("/upload", files=files)
+        response = async_client.post("/documents/upload", files=files)
 
         assert response.status_code == 400
         data = response.json()
         assert "Unsupported file format" in data["detail"]
 
     @pytest.mark.rag
-    @patch('app.main.rag_service')
+    @patch('app.api.routes.questions.rag_service')
     def test_add_text_success(self, mock_rag_service, async_client):
         """Test successful text addition."""
         # Mock RAG service response
@@ -131,7 +131,7 @@ class TestAPIEndpoints:
             "chunks_processed": 2
         }
 
-        response = async_client.post("/add-text", json={
+        response = async_client.post("/documents/add-text", json={
             "text": "This is some test text to add to the knowledge base.",
             "source_name": "test_input"
         })
@@ -144,18 +144,15 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_add_text_empty(self, async_client):
         """Test text addition with empty text."""
-        response = async_client.post("/add-text", json={
+        response = async_client.post("/documents/add-text", json={
             "text": "",
             "source_name": "test_input"
         })
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is False
-        assert "cannot be empty" in data["message"]
+        assert response.status_code == 422  # Validation error for empty text
 
     @pytest.mark.rag
-    @patch('app.main.rag_service')
+    @patch('app.api.routes.questions.rag_service')
     def test_get_stats_success(self, mock_rag_service, async_client):
         """Test successful stats retrieval."""
         # Mock RAG service response
@@ -170,7 +167,7 @@ class TestAPIEndpoints:
             "chunk_overlap": 200
         }
 
-        response = async_client.get("/stats")
+        response = async_client.get("/questions/stats")
 
         assert response.status_code == 200
         data = response.json()

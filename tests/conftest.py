@@ -21,8 +21,8 @@ def event_loop():
 
 @pytest.fixture
 def async_client():
-    """Async HTTP client for testing API endpoints."""
-    # Use TestClient for both sync and async tests
+    """HTTP client for testing API endpoints."""
+    # Use TestClient for testing with correct constructor
     return TestClient(app)
 
 

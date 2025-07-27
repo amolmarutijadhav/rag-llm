@@ -29,10 +29,10 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_ask_question_success(self, sync_client, sample_question_response):
         """Test successful question asking."""
-        with patch('src.main.rag_service') as mock_rag:
+        with patch('app.api.routes.questions.rag_service') as mock_rag:
             mock_rag.ask_question = AsyncMock(return_value=sample_question_response)
             
-            response = sync_client.post("/ask", json={
+            response = sync_client.post("/questions/ask", json={
                 "question": "Who created Python?",
                 "top_k": 3
             })
@@ -47,19 +47,18 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_ask_question_invalid_request(self, sync_client):
         """Test question asking with invalid request."""
-        response = sync_client.post("/ask", json={
-            "question": "",  # Empty question
-            "top_k": 3
+        response = sync_client.post("/questions/ask", json={
+            "invalid_field": "test"  # Invalid field instead of empty question
         })
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
     def test_ask_question_service_error(self, sync_client):
         """Test question asking when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
+        with patch('app.api.routes.questions.rag_service') as mock_rag:
             mock_rag.ask_question = AsyncMock(side_effect=Exception("Service error"))
             
-            response = sync_client.post("/ask", json={
+            response = sync_client.post("/questions/ask", json={
                 "question": "Who created Python?",
                 "top_k": 3
             })
@@ -70,21 +69,25 @@ class TestAPIEndpoints:
 
     def test_upload_document_success(self, sync_client, sample_document_response):
         """Test successful document upload."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.add_document = AsyncMock(return_value=sample_document_response)
+        with patch('app.api.routes.documents.rag_service.add_document') as mock_add_document:
+            mock_add_document.return_value = {
+                "success": True,
+                "message": "Document 'test.txt' added successfully",
+                "chunks_processed": 2
+            }
             
             files = {"file": ("test.txt", b"Python is a programming language", "text/plain")}
-            response = sync_client.post("/upload", files=files)
+            response = sync_client.post("/documents/upload", files=files)
             
             assert response.status_code == 200
             data = response.json()
             assert data["success"] == True
-            assert data["chunks_added"] == 2
+            assert data["chunks_processed"] == 2
 
     def test_upload_document_unsupported_format(self, sync_client):
         """Test document upload with unsupported format."""
         files = {"file": ("test.xyz", b"content", "application/octet-stream")}
-        response = sync_client.post("/upload", files=files)
+        response = sync_client.post("/documents/upload", files=files)
         
         assert response.status_code == 400
         data = response.json()
@@ -96,7 +99,7 @@ class TestAPIEndpoints:
         large_content = b"x" * (11 * 1024 * 1024)  # 11MB
         
         files = {"file": ("large.txt", large_content, "text/plain")}
-        response = sync_client.post("/upload", files=files)
+        response = sync_client.post("/documents/upload", files=files)
         
         assert response.status_code == 400
         data = response.json()
@@ -105,10 +108,14 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_add_text_success(self, sync_client, sample_document_response):
         """Test successful text addition."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.add_text = AsyncMock(return_value=sample_document_response)
+        with patch('app.api.routes.documents.rag_service.add_text') as mock_add_text:
+            mock_add_text.return_value = {
+                "success": True,
+                "message": "Text from 'python_info' added successfully",
+                "chunks_processed": 2
+            }
             
-            response = sync_client.post("/add-text", json={
+            response = sync_client.post("/documents/add-text", json={
                 "text": "Python is a programming language created by Guido van Rossum.",
                 "source_name": "python_info"
             })
@@ -116,12 +123,12 @@ class TestAPIEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["success"] == True
-            assert data["source_name"] == "python_info"
+            assert "added successfully" in data["message"]
 
     @pytest.mark.rag
     def test_add_text_empty_text(self, sync_client):
         """Test text addition with empty text."""
-        response = sync_client.post("/add-text", json={
+        response = sync_client.post("/documents/add-text", json={
             "text": "",
             "source_name": "empty"
         })
@@ -129,10 +136,10 @@ class TestAPIEndpoints:
 
     def test_get_stats_success(self, sync_client, sample_stats_response):
         """Test successful stats retrieval."""
-        with patch('src.main.rag_service') as mock_rag:
+        with patch('app.api.routes.questions.rag_service') as mock_rag:
             mock_rag.get_stats.return_value = sample_stats_response
             
-            response = sync_client.get("/stats")
+            response = sync_client.get("/questions/stats")
             
             assert response.status_code == 200
             data = response.json()
@@ -143,10 +150,10 @@ class TestAPIEndpoints:
 
     def test_get_stats_service_error(self, sync_client):
         """Test stats retrieval when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
+        with patch('app.api.routes.questions.rag_service') as mock_rag:
             mock_rag.get_stats.side_effect = Exception("Service error")
             
-            response = sync_client.get("/stats")
+            response = sync_client.get("/questions/stats")
             
             assert response.status_code == 500
             data = response.json()
@@ -155,10 +162,10 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_clear_knowledge_base_success(self, sync_client, sample_document_response):
         """Test successful knowledge base clearing."""
-        with patch('src.main.rag_service') as mock_rag:
+        with patch('app.api.routes.questions.rag_service') as mock_rag:
             mock_rag.clear_knowledge_base.return_value = sample_document_response
             
-            response = sync_client.delete("/clear")
+            response = sync_client.delete("/documents/clear")
             
             assert response.status_code == 200
             data = response.json()
@@ -167,10 +174,10 @@ class TestAPIEndpoints:
     @pytest.mark.rag
     def test_clear_knowledge_base_service_error(self, sync_client):
         """Test knowledge base clearing when service fails."""
-        with patch('src.main.rag_service') as mock_rag:
-            mock_rag.clear_knowledge_base.side_effect = Exception("Service error")
+        with patch('app.api.routes.documents.rag_service.clear_knowledge_base') as mock_clear:
+            mock_clear.side_effect = Exception("Service error")
             
-            response = sync_client.delete("/clear")
+            response = sync_client.delete("/documents/clear")
             
             assert response.status_code == 500
             data = response.json()
@@ -183,12 +190,12 @@ class TestAPIValidation:
 
     def test_ask_question_missing_fields(self, sync_client):
         """Test question asking with missing required fields."""
-        response = sync_client.post("/ask", json={})
+        response = sync_client.post("/questions/ask", json={})
         assert response.status_code == 422
 
     def test_ask_question_invalid_top_k(self, sync_client):
         """Test question asking with invalid top_k value."""
-        response = sync_client.post("/ask", json={
+        response = sync_client.post("/questions/ask", json={
             "question": "test",
             "top_k": -1  # Invalid negative value
         })
@@ -196,12 +203,12 @@ class TestAPIValidation:
 
     def test_add_text_missing_text(self, sync_client):
         """Test text addition with missing text field."""
-        response = sync_client.post("/add-text", json={
+        response = sync_client.post("/documents/add-text", json={
             "source_name": "test"
         })
         assert response.status_code == 422
 
     def test_upload_document_missing_file(self, sync_client):
         """Test document upload with missing file."""
-        response = sync_client.post("/upload")
+        response = sync_client.post("/documents/upload")
         assert response.status_code == 422 

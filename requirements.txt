@@ -13,17 +13,17 @@ openai>=1.10.0
 # Vector database - Qdrant
 qdrant-client>=1.7.0
 
-# Document processing
-pypdf==3.17.1
-python-docx==1.1.0
+# Document processing - Required for PDF and DOCX support
+pypdf==3.17.1  # Required by PyPDFLoader for PDF processing
+docx2txt==0.9  # Required by Docx2txtLoader for DOCX processing
 
 # Utilities - Compatible with langchain-openai
 pydantic>=2.6.0
 tiktoken>=0.5.2,<0.6.0
 
-# Testing dependencies
+# Testing dependencies - Compatible versions for document upload testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-httpx>=0.25.0
+httpx==0.25.0  # Compatible with FastAPI 0.104.1 and TestClient
 pytest-mock>=3.11.0
 pytest-cov>=4.1.0 
