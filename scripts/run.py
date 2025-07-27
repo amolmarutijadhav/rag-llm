@@ -3,6 +3,12 @@
 Simple script to run the RAG LLM API
 """
 
+import sys
+import os
+
+# Add the parent directory to the Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import uvicorn
 from app.core.config import Config
 

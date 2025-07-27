@@ -11,6 +11,22 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import base64
 
+# Import libraries for creating proper PDF and DOCX files
+try:
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.utils import ImageReader
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+
+try:
+    from docx import Document
+    from docx.shared import Inches
+    PYTHON_DOCX_AVAILABLE = True
+except ImportError:
+    PYTHON_DOCX_AVAILABLE = False
+
 # Sample text data for creating test images
 INVOICE_TEXT = [
     "INVOICE",
@@ -68,8 +84,66 @@ def create_test_image_with_text(text_lines, width=800, height=600, filename="tes
     return image
 
 
+def create_proper_pdf_with_image(image, filename="test_with_image.pdf"):
+    """Create a proper PDF file containing the given image using reportlab."""
+    if not REPORTLAB_AVAILABLE:
+        # Fallback to simple PDF if reportlab is not available
+        return create_simple_pdf_with_image(image, filename)
+    
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+        # Create PDF with reportlab
+        c = canvas.Canvas(temp_file.name, pagesize=letter)
+        width, height = letter
+        
+        # Add some text
+        c.setFont("Helvetica", 16)
+        c.drawString(72, height - 72, "Test PDF with Image")
+        
+        # Save image to temporary file
+        img_temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        image.save(img_temp.name, 'PNG')
+        img_temp.close()
+        
+        # Add image to PDF
+        c.drawImage(img_temp.name, 72, height - 300, width=200, height=150)
+        
+        # Clean up temporary image file
+        os.unlink(img_temp.name)
+        
+        c.save()
+        return temp_file.name
+
+
+def create_proper_docx_with_image(image, filename="test_with_image.docx"):
+    """Create a proper DOCX file containing the given image using python-docx."""
+    if not PYTHON_DOCX_AVAILABLE:
+        # Fallback to simple DOCX if python-docx is not available
+        return create_docx_with_image(image, filename)
+    
+    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_file:
+        # Create document
+        doc = Document()
+        doc.add_heading('Test DOCX with Image', 0)
+        doc.add_paragraph('This document contains an image for OCR testing.')
+        
+        # Save image to temporary file
+        img_temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        image.save(img_temp.name, 'PNG')
+        img_temp.close()
+        
+        # Add image to document
+        doc.add_picture(img_temp.name, width=Inches(4))
+        
+        # Clean up temporary image file
+        os.unlink(img_temp.name)
+        
+        # Save document
+        doc.save(temp_file.name)
+        return temp_file.name
+
+
 def create_simple_pdf_with_image(image, filename="test_with_image.pdf"):
-    """Create a simple PDF file containing the given image."""
+    """Create a simple PDF file containing the given image (fallback method)."""
     # Create a basic PDF with embedded image
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
         # For testing purposes, create a minimal PDF structure
@@ -81,7 +155,7 @@ def create_simple_pdf_with_image(image, filename="test_with_image.pdf"):
 
 
 def create_docx_with_image(image, filename="test_with_image.docx"):
-    """Create a DOCX file containing the given image."""
+    """Create a DOCX file containing the given image (fallback method)."""
     with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_file:
         with zipfile.ZipFile(temp_file, 'w') as docx:
             # Add content types
@@ -126,7 +200,7 @@ def invoice_pdf_with_image():
     invoice_image = create_test_image_with_text(INVOICE_TEXT)
     
     # Create PDF with image
-    pdf_path = create_simple_pdf_with_image(invoice_image, "invoice.pdf")
+    pdf_path = create_proper_pdf_with_image(invoice_image, "invoice.pdf")
     
     yield pdf_path
     
@@ -142,7 +216,7 @@ def chart_docx_with_image():
     chart_image = create_test_image_with_text(CHART_TEXT)
     
     # Create DOCX with image
-    docx_path = create_docx_with_image(chart_image, "chart.docx")
+    docx_path = create_proper_docx_with_image(chart_image, "chart.docx")
     
     yield docx_path
     
@@ -158,7 +232,7 @@ def form_pdf_with_image():
     form_image = create_test_image_with_text(FORM_TEXT)
     
     # Create PDF with image
-    pdf_path = create_simple_pdf_with_image(form_image, "form.pdf")
+    pdf_path = create_proper_pdf_with_image(form_image, "form.pdf")
     
     yield pdf_path
     
@@ -174,7 +248,7 @@ def receipt_docx_with_image():
     receipt_image = create_test_image_with_text(RECEIPT_TEXT)
     
     # Create DOCX with image
-    docx_path = create_docx_with_image(receipt_image, "receipt.docx")
+    docx_path = create_proper_docx_with_image(receipt_image, "receipt.docx")
     
     yield docx_path
     
@@ -201,11 +275,11 @@ def multiple_ocr_test_files():
         image = create_test_image_with_text(text_lines)
         
         # Create PDF
-        pdf_path = create_simple_pdf_with_image(image, f"{name}.pdf")
+        pdf_path = create_proper_pdf_with_image(image, f"{name}.pdf")
         test_files.append(("pdf", pdf_path))
         
         # Create DOCX
-        docx_path = create_docx_with_image(image, f"{name}.docx")
+        docx_path = create_proper_docx_with_image(image, f"{name}.docx")
         test_files.append(("docx", docx_path))
     
     yield test_files

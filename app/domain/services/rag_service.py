@@ -3,6 +3,7 @@ from app.infrastructure.document_processing.loader import DocumentLoader
 from app.infrastructure.vector_store.vector_store import VectorStore
 from app.infrastructure.external.external_api_service import ExternalAPIService
 from app.core.config import Config
+import os
 
 class RAGService:
     """Main RAG service that orchestrates document processing and Q&A using external APIs"""
@@ -16,17 +17,23 @@ class RAGService:
         """Add a document to the knowledge base"""
         try:
             # Load and process document
-            documents = self.document_loader.load_document(file_path)
+            documents, ocr_text = self.document_loader.load_document(file_path)
             
             # Add to vector store using external APIs
             success = await self.vector_store.add_documents(documents)
             
             if success:
-                return {
+                response = {
                     "success": True,
                     "message": f"Document '{file_path}' added successfully",
                     "chunks_processed": len(documents)
                 }
+                
+                # Add OCR text to response if available
+                if ocr_text:
+                    response["extracted_text"] = ocr_text
+                
+                return response
             else:
                 return {
                     "success": False,
@@ -147,7 +154,7 @@ class RAGService:
     def clear_knowledge_base(self) -> Dict[str, Any]:
         """Clear all documents from the knowledge base"""
         try:
-            success = self.vector_store.delete_collection()
+            success = self.vector_store.clear_all_points()
             
             if success:
                 return {

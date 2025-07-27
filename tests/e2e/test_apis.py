@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 """
-Simple script to test the RAG LLM API endpoints
+End-to-end tests for RAG LLM API endpoints
 """
+
+import sys
+import os
+
+# Add the parent directory to the Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import requests
 import json
 from datetime import datetime
+from app.core.config import Config
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8000")
+ADMIN_API_KEY = os.getenv("CLEAR_ENDPOINT_API_KEY", getattr(Config, "CLEAR_ENDPOINT_API_KEY", "admin-secret-key-change-me"))
+CONFIRM_TOKEN = os.getenv("CLEAR_ENDPOINT_CONFIRMATION_TOKEN", getattr(Config, "CLEAR_ENDPOINT_CONFIRMATION_TOKEN", "CONFIRM_DELETE_ALL_DATA"))
 
 def test_health_endpoints():
     """Test health check endpoints"""
@@ -87,11 +96,15 @@ def test_clear_endpoint():
     print("\n🗑️ Testing clear endpoint...")
     
     try:
-        response = requests.delete(f"{BASE_URL}/documents/clear")
-        print(f"✅ /documents/clear - Status: {response.status_code}")
+        response = requests.delete(
+            f"{BASE_URL}/documents/clear-secure",
+            headers={"Authorization": f"Bearer {ADMIN_API_KEY}", "Content-Type": "application/json"},
+            json={"confirmation_token": CONFIRM_TOKEN, "reason": "E2E API test cleanup"}
+        )
+        print(f"✅ /documents/clear-secure - Status: {response.status_code}")
         print(f"   Response: {json.dumps(response.json(), indent=2)}")
     except Exception as e:
-        print(f"❌ /documents/clear - Error: {e}")
+        print(f"❌ /documents/clear-secure - Error: {e}")
 
 def main():
     """Run all API tests"""

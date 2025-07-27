@@ -183,7 +183,7 @@ class TestRAGService:
 
     def test_clear_knowledge_base_success(self, rag_service, mock_vector_store):
         """Test successful knowledge base clearing."""
-        mock_vector_store.delete_collection.return_value = True
+        mock_vector_store.clear_all_points.return_value = True
         
         result = rag_service.clear_knowledge_base()
         
@@ -192,7 +192,7 @@ class TestRAGService:
 
     def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
         """Test knowledge base clearing when it fails."""
-        mock_vector_store.delete_collection.return_value = False
+        mock_vector_store.clear_all_points.return_value = False
         
         result = rag_service.clear_knowledge_base()
         

@@ -1,6 +1,6 @@
 # RAG LLM API - Phase 1 MVP
 
-A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud with **full OCR support**.
+A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud with **full OCR support** and **optimized testing**.
 
 ## 🚀 Features
 
@@ -13,6 +13,7 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 - **Auto-generated Docs**: Interactive API documentation
 - **Externalized APIs**: Complete URL configuration for all external services
 - **Docker Support**: Multi-stage RHEL 9 Docker build with OCR capabilities
+- **Optimized Testing**: Fast test execution with strategic external API mocking
 
 ## 📋 Prerequisites
 
@@ -59,13 +60,46 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 
 1. **Start the server**
    ```bash
-   python run.py
+   python scripts/run.py
    ```
 
 2. **Access the API**
    - API: http://localhost:8000
    - Documentation: http://localhost:8000/docs
    - Health Check: http://localhost:8000/health
+
+## 🧪 Testing
+
+### Fast Development Testing
+```bash
+# Run fast tests (recommended for development)
+pytest -m "not slow"
+
+# Run only integration tests (fast)
+pytest tests/integration/ -m "not slow"
+```
+
+### Complete Test Coverage
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=app
+```
+
+### Test Performance
+- **Fast Tests**: 64.21s (1:04) - 84 tests
+- **Full Suite**: 153.40s (2:33) - 87 tests
+- **Unit Tests**: ~10-15s
+
+### Test Strategy
+- **✅ Real OCR Testing**: Tesseract OCR functionality tested
+- **✅ Real Business Logic**: RAG service and document processing tested
+- **✅ Mocked External APIs**: OpenAI and Qdrant calls mocked for speed
+- **✅ Comprehensive Coverage**: 87 tests covering all functionality
+
+For detailed testing information, see [Testing Guide](docs/development/testing.md).
 
 ## 📚 API Endpoints
 
@@ -76,91 +110,17 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 ### Document Management
 - `POST /documents/upload` - Upload and process documents (with OCR support)
 - `POST /documents/add-text` - Add raw text to knowledge base
-- `DELETE /documents/clear` - Clear all documents
+- `DELETE /documents/clear-secure` - Clear knowledge base (secure endpoint)
+- `GET /documents/stats` - Get collection statistics
 
 ### Question Answering
-- `POST /questions/ask` - Ask questions and get answers
-- `POST /chat/completions` - RAG-enhanced chat completions (OpenAI-compatible)
+- `POST /questions/ask` - Ask questions with RAG-enhanced answers
+- `POST /chat/completions` - RAG-enhanced chat completions
 
-### System Info
-- `GET /stats` - Get system statistics
-
-## 🔧 Configuration
-
-Edit `app/core/config.py` or set environment variables:
-
-```bash
-# External API Endpoints - Complete URLs (no path appending)
-EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
-VECTOR_COLLECTION_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents
-VECTOR_INSERT_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points
-VECTOR_SEARCH_API_URL=https://your-cluster-id.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/search
-LLM_API_URL=https://api.openai.com/v1/chat/completions
-
-# API Authentication
-OPENAI_API_KEY=your_openai_api_key_here
-QDRANT_API_KEY=your_qdrant_api_key_here
-
-# Certificate Configuration
-CERT_FILE_PATH=/path/to/your/certificate.cer
-VERIFY_SSL=True
-CERT_VERIFY_MODE=auto
-
-# Vector Database Configuration
-QDRANT_COLLECTION_NAME=documents
-
-# Application Configuration
-DEBUG=True
-HOST=0.0.0.0
-PORT=8000
-
-# Document Processing
-MAX_FILE_SIZE=10485760  # 10MB
-SUPPORTED_FORMATS=[".pdf", ".txt", ".docx"]
-
-# Document Processing Configuration
-CHUNK_ID_SEPARATOR=_
-DEFAULT_SOURCE_NAME=text_input
-
-# RAG Configuration
-CHUNK_SIZE=1000
-CHUNK_OVERLAP=200
-TOP_K_RESULTS=3
-
-# RAG Prompt Templates
-RAG_PROMPT_TEMPLATE=You are a helpful AI assistant that answers questions based on the provided context. Use only the information from the context to answer the question. If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:
-CONTENT_PREVIEW_LENGTH=200
-DEFAULT_TOP_K=3
-
-# AI Model Configuration
-EMBEDDING_MODEL=text-embedding-ada-002
-LLM_MODEL=gpt-3.5-turbo
-VECTOR_SIZE=1536
-VECTOR_DISTANCE_METRIC=Cosine
-
-# LLM Parameters
-LLM_TEMPERATURE=0.1
-LLM_MAX_TOKENS=1000
-
-# OCR Configuration
-TESSERACT_LANG=eng
-OCR_CONFIDENCE_THRESHOLD=60
-
-# FastAPI Application Configuration
-API_TITLE=RAG LLM API
-API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
-API_VERSION=1.0.0
-
-# CORS Configuration
-CORS_ALLOW_ORIGINS=*
-CORS_ALLOW_CREDENTIALS=True
-CORS_ALLOW_METHODS=*
-CORS_ALLOW_HEADERS=*
-
-# HTTP Configuration
-REQUEST_TIMEOUT=30
-MAX_RETRIES=3
-```
+### Security
+- API key authentication for secure endpoints
+- Rate limiting and audit logging
+- Confirmation tokens for destructive operations
 
 ## 📖 Usage Examples
 
@@ -249,146 +209,175 @@ rag-llm/
 │   └── utils/
 │       ├── __init__.py
 │       ├── cert_utils.py          # Certificate management
-│       └── message_utils.py       # Message processing utilities
+│       └── message_utils.py       # Message formatting utilities
 ├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                # Test configuration and fixtures
 │   ├── unit/                      # Unit tests
-│   ├── integration/               # Integration tests
-│   └── e2e/                       # End-to-end tests
-├── config/
-│   └── env.example                # Environment template with all configuration options
+│   ├── integration/               # Integration tests with mocked external APIs
+│   ├── e2e/                       # End-to-end tests
+│   └── fixtures/                  # Test fixtures and sample data
 ├── docs/                          # Comprehensive documentation
-├── requirements.txt               # Python dependencies
+├── config/                        # Configuration files
 ├── scripts/                       # Utility scripts
-└── README.md                      # This file
+└── requirements.txt               # Python dependencies
 ```
 
-## 🔍 How It Works
+## 🔧 Configuration
 
-1. **Document Processing**: Documents are loaded, chunked, and embedded using OpenAI embeddings
-2. **Vector Storage**: Chunks are stored in Qdrant Cloud with 1536-dimensional vectors
-3. **Question Processing**: User questions are embedded and searched using cosine similarity
-4. **Context Retrieval**: Most relevant document chunks are retrieved based on semantic similarity
-5. **Answer Generation**: GPT-3.5-turbo generates answers using retrieved context
+### Environment Variables
 
-## 🏛️ Technical Architecture
+The application uses externalized configuration for all settings:
 
-### Core Components
-- **FastAPI**: Modern, fast web framework for building APIs
-- **LangChain**: Framework for developing applications with LLMs
-- **Qdrant Cloud**: Vector database for storing and searching embeddings
-- **Configurable LLM**: Supports OpenAI-compatible endpoints (embeddings and chat completion)
-
-### Data Flow
-1. **Document Upload** → Text extraction → Chunking → Embedding → Qdrant storage
-2. **Question Input** → Embedding → Vector search → Context retrieval → LLM generation
-3. **Response** → Formatted answer with source citations
-
-### Performance Characteristics
-- **Embedding Dimension**: 1536 (OpenAI text-embedding-ada-002)
-- **Chunk Size**: 1000 characters with 200 character overlap
-- **Search Results**: Configurable top-k (default: 3)
-- **File Size Limit**: 10MB per upload
-- **Supported Formats**: PDF, TXT, DOCX
-
-### External API Configuration
-The API now uses completely externalized API endpoints:
-- **Embedding API**: `EMBEDDING_API_URL` - Complete URL for text embeddings
-- **Vector Collection API**: `VECTOR_COLLECTION_URL` - Complete URL for collection management
-- **Vector Insert API**: `VECTOR_INSERT_API_URL` - Complete URL for inserting vectors
-- **Vector Search API**: `VECTOR_SEARCH_API_URL` - Complete URL for searching vectors
-- **LLM API**: `LLM_API_URL` - Complete URL for LLM completions
-- **No Path Appending**: URLs are used directly without any modification
-- **Flexibility**: Easy to switch between different providers by changing URLs
-
-### Robust Field Handling
-The vector store now handles inconsistent field names in the payload:
-- **Primary Field**: `"content"` - Standard field name for document content
-- **Fallback Field**: `"page_content"` - Alternative field name for compatibility
-- **Error Handling**: Graceful handling of missing or malformed payloads
-- **Backward Compatibility**: Works with existing data that uses different field names
-
-## 🧪 Testing
-
-The API includes comprehensive testing with pytest:
-
-### Running Tests
 ```bash
-# Run all tests
-python run_tests.py
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_URL=https://api.openai.com/v1
+EMBEDDING_MODEL=text-embedding-ada-002
+CHAT_MODEL=gpt-3.5-turbo
 
-# Run specific test types
-python run_tests.py --type unit      # Unit tests only
-python run_tests.py --type api       # API endpoint tests
-python run_tests.py --type rag       # RAG functionality tests
-python run_tests.py --type fast      # Fast tests (no slow tests)
+# Qdrant Configuration
+QDRANT_API_KEY=your_qdrant_api_key
+QDRANT_URL=your_qdrant_url
+QDRANT_COLLECTION_NAME=rag-llm-dev
+VECTOR_SIZE=1536
+VECTOR_DISTANCE_METRIC=Cosine
 
-# Run without coverage
-python run_tests.py --no-coverage
+# OCR Configuration
+OCR_CONFIDENCE_THRESHOLD=60
 
-# Run quietly
-python run_tests.py --quiet
+# Security Configuration
+CLEAR_ENDPOINT_API_KEY=your_secure_api_key
+CLEAR_ENDPOINT_CONFIRMATION_TOKEN=your_confirmation_token
+CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR=10
+ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING=true
+
+# FastAPI Configuration
+API_TITLE=RAG LLM API
+API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
+API_VERSION=1.0.0
+
+# CORS Configuration
+CORS_ALLOW_ORIGINS=*
+CORS_ALLOW_CREDENTIALS=True
+CORS_ALLOW_METHODS=*
+CORS_ALLOW_HEADERS=*
+
+# HTTP Configuration
+REQUEST_TIMEOUT=30
+MAX_RETRIES=3
 ```
 
-### Test Coverage
-- **Unit Tests**: RAG service, vector store, document loader
-- **API Tests**: All endpoints with validation and error handling
-- **Integration Tests**: End-to-end workflows
-- **Coverage**: HTML reports generated in `htmlcov/`
+## 🚀 Performance
 
-### Debug Tools
-- **test_apis.py**: Comprehensive API testing script
-- **debug_search.py**: Debug script for search functionality
-- **Interactive Documentation**: Available at `/docs` for manual testing
+### Test Performance Optimizations
 
-### Test the API
-Use the interactive documentation at `/docs` to test endpoints manually.
+| **Test Configuration** | **Duration** | **Tests** | **Use Case** |
+|------------------------|--------------|-----------|--------------|
+| **Fast Tests** | 64.21s (1:04) | 84 passed | Development cycles |
+| **Full Suite** | 153.40s (2:33) | 87 passed | Complete coverage |
+| **Unit Tests** | ~10-15s | All unit tests | Quick validation |
 
-## 🔄 Recent Updates
+### Key Optimizations
 
-### Configuration Externalization (Latest)
-- **15+ New Configuration Constants**: Externalized all hardcoded values to environment variables
-- **RAG Prompt Templates**: Configurable prompt templates via `RAG_PROMPT_TEMPLATE`
-- **AI Model Configuration**: Configurable models, parameters, and vector settings
-- **FastAPI Application Settings**: Configurable API metadata and CORS settings
-- **Document Processing**: Configurable chunk separators and source names
-- **Maintainability**: No more magic numbers, centralized configuration management
+- **External API Mocking**: OpenAI and Qdrant calls mocked for fast testing
+- **Real OCR Testing**: Tesseract OCR functionality tested with mocked external calls
+- **Selective Test Execution**: Mark slow tests for optional execution
+- **Comprehensive Coverage**: 87 tests covering all functionality
 
-### Search Functionality Fix
-- **Issue**: Search was failing due to inconsistent field names (`"content"` vs `"page_content"`)
-- **Solution**: Added robust field handling in `VectorStore.search()` method
-- **Result**: Search now works with both field naming conventions
-- **Impact**: Improved compatibility with existing data and different document sources
+## 🔒 Security Features
 
-### External API Externalization
-- **Complete URL Configuration**: All external API endpoints are now fully configurable
-- **No Path Appending**: URLs are used directly without modification
-- **Flexible Provider Support**: Easy switching between different service providers
-- **Collection Management**: Dedicated `VECTOR_COLLECTION_URL` for collection operations
+### Secure Clear Endpoint
 
-### RAG-Enhanced Chat Completions
-- **New Endpoint**: `/chat/completions` - OpenAI-compatible RAG-enhanced chat
-- **Multi-Agentic Support**: Preserves agent personas while adding RAG context
-- **Backward Compatibility**: Works with existing OpenAI chat completions clients
-- **Context Enhancement**: Automatically enhances responses with relevant knowledge base content
+The `/documents/clear-secure` endpoint includes multiple security measures:
 
-## 🔄 Next Phases
+- **API Key Authentication**: Requires valid API key
+- **Confirmation Token**: Requires specific confirmation token
+- **Rate Limiting**: Limits requests per hour per IP
+- **Audit Logging**: Logs all clear operations
+- **Deprecated Old Endpoint**: Old `/documents/clear` returns 410 Gone
 
-This is Phase 1 MVP. Future phases will include:
-- **Phase 2**: Enhanced document processing, better chunking strategies, document metadata
-- **Phase 3**: Advanced RAG techniques, hybrid search, multiple LLM support
-- **Phase 4**: Microservices architecture, advanced monitoring, caching
-- **Phase 5**: Production features, scaling, advanced analytics
+### Security Configuration
+
+```bash
+# Required for secure clear endpoint
+CLEAR_ENDPOINT_API_KEY=your_secure_api_key
+CLEAR_ENDPOINT_CONFIRMATION_TOKEN=your_confirmation_token
+CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR=10
+ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING=true
+```
+
+## 📊 Monitoring and Logging
+
+### Audit Logging
+
+The application includes comprehensive audit logging for security-sensitive operations:
+
+```python
+# Example audit log entry
+{
+    'timestamp': 1753614133.0647714,
+    'operation': 'clear_knowledge_base_attempt',
+    'client_ip': '127.0.0.1',
+    'user_agent': 'Mozilla/5.0...',
+    'success': True,
+    'details': 'Reason: Test verification'
+}
+```
+
+### Health Checks
+
+- `GET /health` - Basic health check
+- `GET /` - Detailed health check with version info
+
+## 🐳 Docker Deployment
+
+### Build and Run
+
+```bash
+# Build the Docker image
+docker build -t rag-llm-api .
+
+# Run the container
+docker run -p 8000:8000 --env-file .env rag-llm-api
+```
+
+### Docker Compose
+
+```bash
+# Start with Docker Compose
+docker-compose up -d
+```
+
+## 📚 Documentation
+
+- [API Documentation](docs/api/overview.md) - Complete API reference
+- [Testing Guide](docs/development/testing.md) - Testing strategy and performance
+- [Security Guide](docs/development/CLEAR_ENDPOINT_SECURITY.md) - Security features
+- [OCR Setup Guide](docs/development/OCR_SETUP_GUIDE.md) - OCR configuration
+- [Architecture Guide](docs/development/architecture.md) - System architecture
+- [Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT_GUIDE.md) - Deployment instructions
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+4. Add tests for new functionality
+5. Run the test suite: `pytest -m "not slow"`
+6. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+For support and questions:
+
+1. Check the [documentation](docs/)
+2. Review [troubleshooting guide](docs/tutorials/troubleshooting.md)
+3. Open an issue on GitHub
+4. Contact the development team
+
+---
+
+**Built with ❤️ using FastAPI, LangChain, and Qdrant Cloud** 

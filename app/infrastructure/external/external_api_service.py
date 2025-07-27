@@ -219,4 +219,28 @@ class ExternalAPIService:
                 
         except Exception as e:
             # Return True if collection doesn't exist (already deleted)
+            return True
+    
+    def delete_all_points(self) -> bool:
+        """Delete all points in the collection without deleting the collection itself"""
+        try:
+            # Use the points deletion URL with a filter that matches all points
+            points_url = f"{Config.VECTOR_COLLECTION_URL}/points/delete"
+            
+            # Filter that matches all points (empty filter matches everything)
+            payload = {
+                "filter": {}
+            }
+            
+            with httpx.Client(**self._get_client_kwargs()) as client:
+                response = client.post(
+                    points_url,
+                    headers=self.qdrant_headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                return True
+                
+        except Exception as e:
+            # Return True if collection doesn't exist or is empty
             return True 

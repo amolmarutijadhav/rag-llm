@@ -119,7 +119,7 @@ class DocumentLoader:
             print(f"Failed to process images in {file_path}: {e}")
             return ""
     
-    def load_document(self, file_path: str) -> List[Dict[str, Any]]:
+    def load_document(self, file_path: str) -> tuple[List[Dict[str, Any]], str]:
         """Load and process a document file with image OCR support"""
         
         # Validate file format
@@ -177,7 +177,7 @@ class DocumentLoader:
                 }
             })
         
-        return processed_chunks
+        return processed_chunks, image_text
     
     def load_text(self, text: str, source_name: str = None) -> List[Dict[str, Any]]:
         """Load and process raw text"""

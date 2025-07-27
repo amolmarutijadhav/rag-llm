@@ -13,6 +13,7 @@ class DocumentResponse(BaseModel):
     success: bool
     message: str
     chunks_processed: Optional[int] = None
+    extracted_text: Optional[str] = None
 
 class StatsResponse(BaseModel):
     """Response model for system statistics"""

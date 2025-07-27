@@ -61,6 +61,7 @@ def mock_vector_store():
         "collection_name": "test_collection"
     })
     mock_store.delete_collection = Mock(return_value=True)
+    mock_store.clear_all_points = Mock(return_value=True)
     return mock_store
 
 

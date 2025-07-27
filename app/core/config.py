@@ -86,6 +86,12 @@ class Config:
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
     MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
     
+    # Security Configuration for Critical Endpoints
+    CLEAR_ENDPOINT_API_KEY = os.getenv("CLEAR_ENDPOINT_API_KEY", "admin-secret-key-change-me")
+    CLEAR_ENDPOINT_CONFIRMATION_TOKEN = os.getenv("CLEAR_ENDPOINT_CONFIRMATION_TOKEN", "CONFIRM_DELETE_ALL_DATA")
+    CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR = int(os.getenv("CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR", "5"))
+    ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING = os.getenv("ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING", "True").lower() == "true"
+    
     @classmethod
     def get_ssl_config(cls):
         """Get SSL configuration using CertificateManager"""

@@ -105,4 +105,12 @@ class VectorStore:
             return self.api_service.delete_collection()
         except Exception as e:
             print(f"Error deleting collection: {e}")
+            return False
+    
+    def clear_all_points(self) -> bool:
+        """Clear all points in the collection without deleting the collection itself"""
+        try:
+            return self.api_service.delete_all_points()
+        except Exception as e:
+            print(f"Error clearing all points: {e}")
             return False 
