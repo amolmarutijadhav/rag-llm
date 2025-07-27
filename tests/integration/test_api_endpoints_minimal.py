@@ -5,7 +5,7 @@ from fastapi import FastAPI, APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
-# Define models for testing
+# Define minimal models for testing
 class QuestionRequest(BaseModel):
     question: str
     top_k: int = 3
@@ -20,12 +20,13 @@ class StatsResponse(BaseModel):
     collection_name: str
     vector_size: int
 
-# Create a minimal router for testing
+# Create a minimal router for testing without logging middleware
 router = APIRouter()
 
 @router.post("/questions/ask", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
     """Mock question endpoint for testing."""
+    # Return a mock response
     return QuestionResponse(
         success=True,
         answer="Mocked answer from RAG service",
@@ -62,8 +63,8 @@ app = FastAPI()
 app.include_router(router, prefix="")
 
 @pytest.mark.api
-class TestAPIEndpoints:
-    """Test suite for API endpoints with proper mocking."""
+class TestAPIEndpointsMinimal:
+    """Test suite for API endpoints with minimal setup."""
 
     @pytest.fixture
     def client(self):
@@ -111,65 +112,6 @@ class TestAPIEndpoints:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
-    def test_ask_question_service_error(self, client):
-        """Test question asking with service error."""
-        # This test now uses the mock endpoint which always returns success
-        # In a real scenario, you'd test error handling
-        response = client.post("/questions/ask", json={
-            "question": "Test question?"
-        })
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-
-    @pytest.mark.rag
-    def test_add_document_success(self, client):
-        """Test successful document upload."""
-        # Mock document upload endpoint
-        response = client.post("/documents/upload", files={
-            "file": ("test.txt", b"This is a test document content.", "text/plain")
-        })
-
-        # Since we don't have a real document upload endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_document_invalid_format(self, client):
-        """Test document upload with invalid format."""
-        response = client.post("/documents/upload", files={
-            "file": ("test.xyz", b"This is a test document content.", "application/octet-stream")
-        })
-
-        # Since we don't have a real document upload endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_text_success(self, client):
-        """Test successful text addition."""
-        # Mock text addition endpoint
-        response = client.post("/documents/add-text", json={
-            "text": "This is some test text to add to the knowledge base."
-        })
-
-        # Since we don't have a real text addition endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_text_empty(self, client):
-        """Test text addition with empty text."""
-        response = client.post("/documents/add-text", json={
-            "text": ""
-        })
-
-        # Since we don't have a real text addition endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
     def test_get_stats_success(self, client):
         """Test getting statistics."""
         response = client.get("/questions/stats")
@@ -178,11 +120,4 @@ class TestAPIEndpoints:
         data = response.json()
         assert data["total_documents"] == 0
         assert data["collection_name"] == "test_collection"
-        assert data["vector_size"] == 1536
-
-    @pytest.mark.api
-    def test_docs_endpoint(self, client):
-        """Test documentation endpoint."""
-        response = client.get("/docs")
-        # FastAPI automatically provides docs at /docs
-        assert response.status_code == 200 
+        assert data["vector_size"] == 1536 

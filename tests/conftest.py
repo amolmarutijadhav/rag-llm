@@ -27,6 +27,13 @@ def async_client():
 
 
 @pytest.fixture
+async def async_client_real():
+    """Real async HTTP client for testing API endpoints."""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
 def sync_client():
     """Synchronous HTTP client for testing API endpoints."""
     return TestClient(app)

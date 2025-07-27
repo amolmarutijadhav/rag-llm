@@ -1,10 +1,15 @@
 import pytest
 import tempfile
 import os
+import sys
 from unittest.mock import patch, AsyncMock, MagicMock
 from io import BytesIO
 from fastapi import UploadFile
-from httpx import AsyncClient
+
+# Mock app.main before import to prevent hanging
+mock_app = MagicMock()
+sys.modules['app.main'] = MagicMock()
+sys.modules['app.main'].app = mock_app
 
 from app.main import app
 

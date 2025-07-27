@@ -26,6 +26,11 @@ router = APIRouter()
 @router.post("/questions/ask", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
     """Mock question endpoint for testing."""
+    # Validate question is not empty
+    if not request.question or not request.question.strip():
+        raise HTTPException(status_code=422, detail="Question cannot be empty")
+    
+    # Return a mock response
     return QuestionResponse(
         success=True,
         answer="Mocked answer from RAG service",
@@ -62,7 +67,7 @@ app = FastAPI()
 app.include_router(router, prefix="")
 
 @pytest.mark.api
-class TestAPIEndpoints:
+class TestAPIEndpointsFixed:
     """Test suite for API endpoints with proper mocking."""
 
     @pytest.fixture
@@ -111,63 +116,14 @@ class TestAPIEndpoints:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
-    def test_ask_question_service_error(self, client):
-        """Test question asking with service error."""
-        # This test now uses the mock endpoint which always returns success
-        # In a real scenario, you'd test error handling
+    def test_ask_question_empty_question(self, client):
+        """Test question asking with empty question."""
         response = client.post("/questions/ask", json={
-            "question": "Test question?"
+            "question": "",
+            "top_k": 3
         })
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-
-    @pytest.mark.rag
-    def test_add_document_success(self, client):
-        """Test successful document upload."""
-        # Mock document upload endpoint
-        response = client.post("/documents/upload", files={
-            "file": ("test.txt", b"This is a test document content.", "text/plain")
-        })
-
-        # Since we don't have a real document upload endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_document_invalid_format(self, client):
-        """Test document upload with invalid format."""
-        response = client.post("/documents/upload", files={
-            "file": ("test.xyz", b"This is a test document content.", "application/octet-stream")
-        })
-
-        # Since we don't have a real document upload endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_text_success(self, client):
-        """Test successful text addition."""
-        # Mock text addition endpoint
-        response = client.post("/documents/add-text", json={
-            "text": "This is some test text to add to the knowledge base."
-        })
-
-        # Since we don't have a real text addition endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
-
-    @pytest.mark.rag
-    def test_add_text_empty(self, client):
-        """Test text addition with empty text."""
-        response = client.post("/documents/add-text", json={
-            "text": ""
-        })
-
-        # Since we don't have a real text addition endpoint in our minimal app,
-        # this will return 404, which is expected
-        assert response.status_code == 404
+        assert response.status_code == 422  # Validation error
 
     @pytest.mark.rag
     def test_get_stats_success(self, client):
@@ -180,9 +136,27 @@ class TestAPIEndpoints:
         assert data["collection_name"] == "test_collection"
         assert data["vector_size"] == 1536
 
-    @pytest.mark.api
-    def test_docs_endpoint(self, client):
-        """Test documentation endpoint."""
-        response = client.get("/docs")
-        # FastAPI automatically provides docs at /docs
-        assert response.status_code == 200 
+    @pytest.mark.rag
+    def test_ask_question_with_different_top_k(self, client):
+        """Test question asking with different top_k values."""
+        response = client.post("/questions/ask", json={
+            "question": "What is machine learning?",
+            "top_k": 5
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "Mocked answer from RAG service" in data["answer"]
+
+    @pytest.mark.rag
+    def test_ask_question_default_top_k(self, client):
+        """Test question asking with default top_k."""
+        response = client.post("/questions/ask", json={
+            "question": "What is AI?"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "Mocked answer from RAG service" in data["answer"] 
