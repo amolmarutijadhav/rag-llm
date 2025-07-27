@@ -1,6 +1,6 @@
-# RAG LLM API - Phase 1 MVP
+# RAG LLM API - Plugin Architecture
 
-A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud with **full OCR support** and **optimized testing**.
+A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, LangChain, and Qdrant Cloud with **full OCR support**, **plugin architecture for external services**, and **optimized testing**.
 
 ## 🚀 Features
 
@@ -11,15 +11,19 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 - **Vector Search**: Semantic search using Qdrant Cloud with robust field handling
 - **RESTful API**: Clean, documented API endpoints
 - **Auto-generated Docs**: Interactive API documentation
-- **Externalized APIs**: Complete URL configuration for all external services
+- **🔌 Plugin Architecture**: Pluggable external service providers (OpenAI, in-house, etc.)
+- **🏭 Factory Pattern**: Dynamic provider selection via configuration
+- **🔧 Service Locator**: Centralized provider management
 - **Docker Support**: Multi-stage RHEL 9 Docker build with OCR capabilities
 - **Optimized Testing**: Fast test execution with strategic external API mocking
 
 ## 📋 Prerequisites
 
 - Python 3.8+
-- OpenAI API key
-- Qdrant Cloud account (free tier available)
+- **External Service Providers** (choose one or more):
+  - OpenAI API key (default)
+  - Qdrant Cloud account (default)
+  - In-house embedding/LLM services (optional)
 - **OCR Dependencies** (optional but recommended):
   - Tesseract OCR Engine
   - Poppler utilities (for PDF processing)
@@ -53,7 +57,7 @@ A production-ready Retrieval-Augmented Generation (RAG) API built with FastAPI, 
 4. **Set up environment variables**
    ```bash
    cp config/env.example .env
-   # Edit .env and add your OpenAI API key and Qdrant Cloud credentials
+   # Edit .env and add your provider API keys and configuration
    ```
 
 ## 🏃‍♂️ Quick Start
@@ -88,15 +92,24 @@ pytest
 pytest --cov=app
 ```
 
+### E2E Testing
+```bash
+# Start server first, then run E2E tests
+python scripts/run.py  # In one terminal
+python scripts/run_e2e_tests.py  # In another terminal
+```
+
 ### Test Performance
 - **Fast Tests**: 64.21s (1:04) - 84 tests
 - **Full Suite**: 153.40s (2:33) - 87 tests
 - **Unit Tests**: ~10-15s
+- **E2E Tests**: ~4.8 minutes - 6 test categories
 
 ### Test Strategy
 - **✅ Real OCR Testing**: Tesseract OCR functionality tested
 - **✅ Real Business Logic**: RAG service and document processing tested
-- **✅ Mocked External APIs**: OpenAI and Qdrant calls mocked for speed
+- **✅ Mocked External APIs**: Provider calls mocked for speed
+- **✅ Plugin Architecture Tests**: Provider factory and service locator tested
 - **✅ Comprehensive Coverage**: 87 tests covering all functionality
 
 For detailed testing information, see [Testing Guide](docs/development/testing.md).
@@ -178,25 +191,33 @@ rag-llm/
 │   ├── main.py                    # FastAPI application with configurable settings
 │   ├── core/
 │   │   ├── __init__.py
-│   │   └── config.py              # Centralized configuration with 15+ externalized constants
+│   │   └── config.py              # Centralized configuration with provider support
 │   ├── domain/
 │   │   ├── __init__.py
 │   │   ├── entities/
+│   │   ├── interfaces/            # 🔌 Provider interfaces (ABCs)
+│   │   │   ├── __init__.py
+│   │   │   └── providers.py       # EmbeddingProvider, VectorStoreProvider, LLMProvider
 │   │   ├── models/                # Pydantic models
 │   │   └── services/
 │   │       ├── __init__.py
-│   │       └── rag_service.py     # Main RAG orchestration with configurable prompts
+│   │       └── rag_service.py     # Main RAG orchestration with provider injection
 │   ├── infrastructure/
 │   │   ├── __init__.py
 │   │   ├── document_processing/
 │   │   │   ├── __init__.py
 │   │   │   └── loader.py          # Document processing with configurable settings
-│   │   ├── external/
+│   │   ├── providers/             # 🔌 Provider implementations
 │   │   │   ├── __init__.py
-│   │   │   └── external_api_service.py # External API calls with configurable models
+│   │   │   ├── base_provider.py   # Base HTTP client and common functionality
+│   │   │   ├── factory.py         # 🏭 ProviderFactory for dynamic creation
+│   │   │   ├── service_locator.py # 🔧 ServiceLocator for provider management
+│   │   │   ├── openai_provider.py # OpenAI embedding and LLM providers
+│   │   │   ├── qdrant_provider.py # Qdrant vector store provider
+│   │   │   └── inhouse_provider.py # In-house provider templates
 │   │   └── vector_store/
 │   │       ├── __init__.py
-│   │       └── vector_store.py    # Vector database operations
+│   │       └── vector_store.py    # Vector database operations with provider injection
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── middleware/
@@ -211,8 +232,8 @@ rag-llm/
 │       ├── cert_utils.py          # Certificate management
 │       └── message_utils.py       # Message formatting utilities
 ├── tests/
-│   ├── unit/                      # Unit tests
-│   ├── integration/               # Integration tests with mocked external APIs
+│   ├── unit/                      # Unit tests (including provider tests)
+│   ├── integration/               # Integration tests with mocked providers
 │   ├── e2e/                       # End-to-end tests
 │   └── fixtures/                  # Test fixtures and sample data
 ├── docs/                          # Comprehensive documentation
@@ -225,21 +246,32 @@ rag-llm/
 
 ### Environment Variables
 
-The application uses externalized configuration for all settings:
+The application uses externalized configuration with plugin architecture support:
 
 ```bash
-# OpenAI Configuration
+# Provider Type Configuration
+PROVIDER_EMBEDDING_TYPE=openai      # or "inhouse", "cohere"
+PROVIDER_LLM_TYPE=openai           # or "inhouse", "anthropic"
+PROVIDER_VECTOR_STORE_TYPE=qdrant  # or "inhouse", "pinecone"
+
+# OpenAI Provider Configuration
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_API_URL=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-ada-002
 CHAT_MODEL=gpt-3.5-turbo
 
-# Qdrant Configuration
+# Qdrant Provider Configuration
 QDRANT_API_KEY=your_qdrant_api_key
 QDRANT_URL=your_qdrant_url
 QDRANT_COLLECTION_NAME=rag-llm-dev
 VECTOR_SIZE=1536
 VECTOR_DISTANCE_METRIC=Cosine
+
+# In-House Provider Configuration (optional)
+INHOUSE_EMBEDDING_API_URL=https://your-inhouse-embedding-api.com
+INHOUSE_LLM_API_URL=https://your-inhouse-llm-api.com
+INHOUSE_VECTOR_STORE_URL=https://your-inhouse-vector-store.com
+INHOUSE_API_KEY=your_inhouse_key
 
 # OCR Configuration
 OCR_CONFIDENCE_THRESHOLD=60
@@ -266,6 +298,53 @@ REQUEST_TIMEOUT=30
 MAX_RETRIES=3
 ```
 
+## 🔌 Plugin Architecture
+
+### Provider System
+
+The API now supports a plugin architecture that allows you to easily switch between different external service providers:
+
+#### Available Providers
+
+1. **Embedding Providers**:
+   - `OpenAIEmbeddingProvider` (default)
+   - `InhouseEmbeddingProvider` (template)
+
+2. **LLM Providers**:
+   - `OpenAILLMProvider` (default)
+   - `InhouseLLMProvider` (template)
+
+3. **Vector Store Providers**:
+   - `QdrantVectorStoreProvider` (default)
+   - `InhouseVectorStoreProvider` (template)
+
+#### Switching Providers
+
+To switch providers, simply update your environment variables:
+
+```bash
+# Use OpenAI for everything (default)
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=openai
+PROVIDER_VECTOR_STORE_TYPE=qdrant
+
+# Use in-house services
+PROVIDER_EMBEDDING_TYPE=inhouse
+PROVIDER_LLM_TYPE=inhouse
+PROVIDER_VECTOR_STORE_TYPE=inhouse
+```
+
+#### Adding New Providers
+
+To add a new provider:
+
+1. Implement the interface in `app/domain/interfaces/providers.py`
+2. Create the provider class in `app/infrastructure/providers/`
+3. Update the factory in `app/infrastructure/providers/factory.py`
+4. Add configuration support in `app/core/config.py`
+
+For detailed information, see [Plugin Architecture Guide](docs/development/PLUGIN_ARCHITECTURE.md).
+
 ## 🚀 Performance
 
 ### Test Performance Optimizations
@@ -275,13 +354,15 @@ MAX_RETRIES=3
 | **Fast Tests** | 64.21s (1:04) | 84 passed | Development cycles |
 | **Full Suite** | 153.40s (2:33) | 87 passed | Complete coverage |
 | **Unit Tests** | ~10-15s | All unit tests | Quick validation |
+| **E2E Tests** | ~4.8 minutes | 6 categories | Production validation |
 
 ### Key Optimizations
 
-- **External API Mocking**: OpenAI and Qdrant calls mocked for fast testing
-- **Real OCR Testing**: Tesseract OCR functionality tested with mocked external calls
+- **Provider Mocking**: External service calls mocked for fast testing
+- **Real OCR Testing**: Tesseract OCR functionality tested with mocked providers
 - **Selective Test Execution**: Mark slow tests for optional execution
 - **Comprehensive Coverage**: 87 tests covering all functionality
+- **Plugin Architecture Testing**: Provider factory and service locator tested
 
 ## 🔒 Security Features
 
@@ -350,6 +431,7 @@ docker-compose up -d
 ## 📚 Documentation
 
 - [API Documentation](docs/api/overview.md) - Complete API reference
+- [Plugin Architecture Guide](docs/development/PLUGIN_ARCHITECTURE.md) - Provider system documentation
 - [Testing Guide](docs/development/testing.md) - Testing strategy and performance
 - [Security Guide](docs/development/CLEAR_ENDPOINT_SECURITY.md) - Security features
 - [OCR Setup Guide](docs/development/OCR_SETUP_GUIDE.md) - OCR configuration
@@ -380,4 +462,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ using FastAPI, LangChain, and Qdrant Cloud** 
+**Built with ❤️ using FastAPI, LangChain, and Plugin Architecture** 

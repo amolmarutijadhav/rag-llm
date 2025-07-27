@@ -1,229 +1,463 @@
-# Configuration Externalization Analysis & Implementation
+# Configuration Externalization Guide
 
-## Overview
+This document provides a comprehensive overview of the configuration system for the RAG LLM API, including environment variables, provider configuration, and best practices with the new **Plugin Architecture**.
 
-This document outlines the comprehensive analysis and implementation of configuration externalization for the RAG LLM project. The goal was to identify and externalize all hardcoded values and constants to improve maintainability, flexibility, and deployment configuration.
+## 🔧 Configuration Overview
 
-## Analysis Results
+The RAG LLM API uses a comprehensive externalized configuration system that supports the plugin architecture, allowing you to configure different provider types and their specific settings through environment variables.
 
-### ✅ Already Well-Configured Areas
+### Configuration Philosophy
 
-1. **Core Configuration Structure**
-   - Centralized `Config` class in `app/core/config.py`
-   - Environment variable support with `.env` files
-   - Good separation of configuration concerns
+1. **Externalization**: All configuration is externalized to environment variables
+2. **Provider Flexibility**: Support for multiple provider types per service
+3. **Environment Separation**: Easy switching between development, staging, and production
+4. **Security**: Sensitive data kept out of code
+5. **Maintainability**: Centralized configuration management
 
-2. **API Endpoints & Authentication**
-   - All external API URLs are configurable
-   - API keys are properly externalized
-   - SSL/certificate configuration is flexible
+## 🔌 Provider Configuration
 
-3. **Basic Application Settings**
-   - Host, port, debug mode are configurable
-   - HTTP timeout and retry settings are externalized
+### Provider Type Configuration
 
-### 🔧 Areas Improved
+The plugin architecture allows you to configure different provider types for each service:
 
-#### 1. RAG Service Configuration
-
-**Before:**
-```python
-# Hardcoded in rag_service.py
-self.rag_prompt = """You are a helpful AI assistant..."""
-top_k = 3  # Hardcoded in chat route
-content[:200] + "..."  # Hardcoded truncation
-```
-
-**After:**
-```python
-# Now configurable via environment variables
-RAG_PROMPT_TEMPLATE = os.getenv("RAG_PROMPT_TEMPLATE", "...")
-CONTENT_PREVIEW_LENGTH = int(os.getenv("CONTENT_PREVIEW_LENGTH", "200"))
-DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "3"))
-```
-
-#### 2. AI Model Configuration
-
-**Before:**
-```python
-# Hardcoded in external_api_service.py
-"model": "text-embedding-ada-002"
-"model": "gpt-3.5-turbo"
-"size": 1536
-"distance": "Cosine"
-"temperature": 0.1
-"max_tokens": 1000
-```
-
-**After:**
-```python
-# Now configurable via environment variables
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
-VECTOR_SIZE = int(os.getenv("VECTOR_SIZE", "1536"))
-VECTOR_DISTANCE_METRIC = os.getenv("VECTOR_DISTANCE_METRIC", "Cosine")
-LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1000"))
-```
-
-#### 3. FastAPI Application Configuration
-
-**Before:**
-```python
-# Hardcoded in main.py
-app = FastAPI(
-    title="RAG LLM API",
-    description="A simple RAG...",
-    version="1.0.0"
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Hardcoded wildcard
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
-**After:**
-```python
-# Now configurable via environment variables
-API_TITLE = os.getenv("API_TITLE", "RAG LLM API")
-API_DESCRIPTION = os.getenv("API_DESCRIPTION", "...")
-API_VERSION = os.getenv("API_VERSION", "1.0.0")
-CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
-CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "True").lower() == "true"
-CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS", "*").split(",")
-CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS", "*").split(",")
-```
-
-#### 4. Document Processing Configuration
-
-**Before:**
-```python
-# Hardcoded in loader.py
-f"{os.path.basename(file_path)}_{i}"  # Hardcoded separator
-source_name = "text_input"  # Hardcoded default
-```
-
-**After:**
-```python
-# Now configurable via environment variables
-CHUNK_ID_SEPARATOR = os.getenv("CHUNK_ID_SEPARATOR", "_")
-DEFAULT_SOURCE_NAME = os.getenv("DEFAULT_SOURCE_NAME", "text_input")
-```
-
-## Configuration Categories
-
-### 1. **High Priority - Core Functionality**
-- AI model selection and parameters
-- RAG prompt templates
-- Vector database configuration
-- Content processing limits
-
-### 2. **Medium Priority - Application Behavior**
-- FastAPI metadata and CORS settings
-- Document processing options
-- Display and formatting preferences
-
-### 3. **Low Priority - Development/Testing**
-- Logging levels
-- Debug information
-- Test-specific configurations
-
-## Environment Variables Reference
-
-### AI Model Configuration
 ```bash
+# Provider Type Configuration
+PROVIDER_EMBEDDING_TYPE=openai      # or "inhouse", "cohere"
+PROVIDER_LLM_TYPE=openai           # or "inhouse", "anthropic"
+PROVIDER_VECTOR_STORE_TYPE=qdrant  # or "inhouse", "pinecone"
+```
+
+### Provider-Specific Configuration
+
+Each provider type has its own configuration settings:
+
+#### OpenAI Provider Configuration
+
+```bash
+# OpenAI Provider Settings
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_URL=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-ada-002
-LLM_MODEL=gpt-3.5-turbo
-VECTOR_SIZE=1536
-VECTOR_DISTANCE_METRIC=Cosine
-LLM_TEMPERATURE=0.1
+CHAT_MODEL=gpt-3.5-turbo
+LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=1000
 ```
 
-### RAG Configuration
+#### Qdrant Provider Configuration
+
 ```bash
-RAG_PROMPT_TEMPLATE=Your custom prompt template here...
-CONTENT_PREVIEW_LENGTH=200
-DEFAULT_TOP_K=3
+# Qdrant Provider Settings
+QDRANT_API_KEY=your_qdrant_api_key
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_COLLECTION_NAME=rag-llm-dev
+VECTOR_SIZE=1536
+VECTOR_DISTANCE_METRIC=Cosine
 ```
 
-### FastAPI Configuration
+#### In-House Provider Configuration
+
 ```bash
+# In-House Provider Settings
+INHOUSE_EMBEDDING_API_URL=https://your-inhouse-embedding-api.com
+INHOUSE_LLM_API_URL=https://your-inhouse-llm-api.com
+INHOUSE_VECTOR_STORE_URL=https://your-inhouse-vector-store.com
+INHOUSE_API_KEY=your_inhouse_key
+INHOUSE_EMBEDDING_MODEL=your-embedding-model
+INHOUSE_LLM_MODEL=your-llm-model
+```
+
+## 🏗️ Configuration Architecture
+
+### Configuration Class Structure
+
+The `Config` class provides methods to get provider-specific configurations:
+
+```python
+class Config:
+    @classmethod
+    def get_embedding_provider_config(cls) -> Dict[str, Any]:
+        """Get embedding provider configuration based on provider type"""
+        provider_type = os.getenv("PROVIDER_EMBEDDING_TYPE", "openai")
+        
+        if provider_type == "openai":
+            return {
+                "type": "openai",
+                "api_key": os.getenv("OPENAI_API_KEY"),
+                "api_url": os.getenv("OPENAI_API_URL", "https://api.openai.com/v1"),
+                "model": os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
+            }
+        elif provider_type == "inhouse":
+            return {
+                "type": "inhouse",
+                "api_url": os.getenv("INHOUSE_EMBEDDING_API_URL"),
+                "api_key": os.getenv("INHOUSE_API_KEY"),
+                "model": os.getenv("INHOUSE_EMBEDDING_MODEL")
+            }
+        else:
+            raise ValueError(f"Unsupported embedding provider type: {provider_type}")
+    
+    @classmethod
+    def get_llm_provider_config(cls) -> Dict[str, Any]:
+        """Get LLM provider configuration based on provider type"""
+        provider_type = os.getenv("PROVIDER_LLM_TYPE", "openai")
+        
+        if provider_type == "openai":
+            return {
+                "type": "openai",
+                "api_key": os.getenv("OPENAI_API_KEY"),
+                "api_url": os.getenv("OPENAI_API_URL", "https://api.openai.com/v1"),
+                "model": os.getenv("CHAT_MODEL", "gpt-3.5-turbo"),
+                "temperature": float(os.getenv("LLM_TEMPERATURE", "0.7")),
+                "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "1000"))
+            }
+        elif provider_type == "inhouse":
+            return {
+                "type": "inhouse",
+                "api_url": os.getenv("INHOUSE_LLM_API_URL"),
+                "api_key": os.getenv("INHOUSE_API_KEY"),
+                "model": os.getenv("INHOUSE_LLM_MODEL"),
+                "temperature": float(os.getenv("LLM_TEMPERATURE", "0.7")),
+                "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "1000"))
+            }
+        else:
+            raise ValueError(f"Unsupported LLM provider type: {provider_type}")
+    
+    @classmethod
+    def get_vector_store_provider_config(cls) -> Dict[str, Any]:
+        """Get vector store provider configuration based on provider type"""
+        provider_type = os.getenv("PROVIDER_VECTOR_STORE_TYPE", "qdrant")
+        
+        if provider_type == "qdrant":
+            return {
+                "type": "qdrant",
+                "api_key": os.getenv("QDRANT_API_KEY"),
+                "base_url": os.getenv("QDRANT_URL"),
+                "collection_name": os.getenv("QDRANT_COLLECTION_NAME", "rag-llm-dev"),
+                "vector_size": int(os.getenv("VECTOR_SIZE", "1536")),
+                "distance_metric": os.getenv("VECTOR_DISTANCE_METRIC", "Cosine")
+            }
+        elif provider_type == "inhouse":
+            return {
+                "type": "inhouse",
+                "api_url": os.getenv("INHOUSE_VECTOR_STORE_URL"),
+                "api_key": os.getenv("INHOUSE_API_KEY"),
+                "collection_name": os.getenv("QDRANT_COLLECTION_NAME", "rag-llm-dev"),
+                "vector_size": int(os.getenv("VECTOR_SIZE", "1536"))
+            }
+        else:
+            raise ValueError(f"Unsupported vector store provider type: {provider_type}")
+```
+
+## 📋 Complete Environment Variables
+
+### Core Configuration
+
+```bash
+# Application Configuration
 API_TITLE=RAG LLM API
-API_DESCRIPTION=Your custom description
+API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
 API_VERSION=1.0.0
+DEBUG=true
+HOST=0.0.0.0
+PORT=8000
+
+# CORS Configuration
 CORS_ALLOW_ORIGINS=*
 CORS_ALLOW_CREDENTIALS=True
 CORS_ALLOW_METHODS=*
 CORS_ALLOW_HEADERS=*
+
+# HTTP Configuration
+REQUEST_TIMEOUT=30
+MAX_RETRIES=3
 ```
 
-### Document Processing
+### Provider Configuration
+
 ```bash
-CHUNK_ID_SEPARATOR=_
-DEFAULT_SOURCE_NAME=text_input
+# Provider Type Configuration
+PROVIDER_EMBEDDING_TYPE=openai      # or "inhouse", "cohere"
+PROVIDER_LLM_TYPE=openai           # or "inhouse", "anthropic"
+PROVIDER_VECTOR_STORE_TYPE=qdrant  # or "inhouse", "pinecone"
+
+# OpenAI Provider Configuration
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_URL=https://api.openai.com/v1
+EMBEDDING_MODEL=text-embedding-ada-002
+CHAT_MODEL=gpt-3.5-turbo
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=1000
+
+# Qdrant Provider Configuration
+QDRANT_API_KEY=your_qdrant_api_key
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_COLLECTION_NAME=rag-llm-dev
+VECTOR_SIZE=1536
+VECTOR_DISTANCE_METRIC=Cosine
+
+# In-House Provider Configuration (optional)
+INHOUSE_EMBEDDING_API_URL=https://your-inhouse-embedding-api.com
+INHOUSE_LLM_API_URL=https://your-inhouse-llm-api.com
+INHOUSE_VECTOR_STORE_URL=https://your-inhouse-vector-store.com
+INHOUSE_API_KEY=your_inhouse_key
+INHOUSE_EMBEDDING_MODEL=your-embedding-model
+INHOUSE_LLM_MODEL=your-llm-model
 ```
 
-## Implementation Benefits
+### OCR Configuration
 
-### 1. **Deployment Flexibility**
-- Easy environment-specific configuration
-- No code changes needed for different deployments
-- Support for multiple model providers
+```bash
+# OCR Configuration
+OCR_CONFIDENCE_THRESHOLD=60
+```
 
-### 2. **Maintenance Improvement**
-- Centralized configuration management
-- Easy to update settings without code changes
-- Clear documentation of all configurable options
+### Security Configuration
 
-### 3. **Security Enhancement**
-- Sensitive values kept out of code
-- Environment-specific security settings
-- Proper CORS configuration for production
+```bash
+# Security Configuration
+CLEAR_ENDPOINT_API_KEY=your_secure_api_key
+CLEAR_ENDPOINT_CONFIRMATION_TOKEN=your_confirmation_token
+CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR=10
+ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING=true
+```
 
-### 4. **Testing & Development**
-- Easy configuration for different test environments
-- Flexible prompt templates for experimentation
-- Configurable model parameters for testing
+## 🔄 Configuration Management
 
-## Next Steps & Recommendations
+### Environment-Specific Configuration
 
-### 1. **Immediate Actions**
-- [ ] Update all service files to use new configuration constants
-- [ ] Update main.py to use configurable FastAPI settings
-- [ ] Update external API service to use configurable model parameters
-- [ ] Update RAG service to use configurable prompt templates
+#### Development Environment
 
-### 2. **Future Enhancements**
-- [ ] Add configuration validation
-- [ ] Implement configuration hot-reloading
-- [ ] Add configuration documentation generation
-- [ ] Create configuration migration scripts
+```bash
+# .env.development
+DEBUG=true
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=openai
+PROVIDER_VECTOR_STORE_TYPE=qdrant
+OPENAI_API_KEY=your_dev_openai_key
+QDRANT_API_KEY=your_dev_qdrant_key
+```
 
-### 3. **Production Considerations**
-- [ ] Implement secure configuration management
-- [ ] Add configuration monitoring and alerting
-- [ ] Create configuration backup and recovery procedures
-- [ ] Implement configuration versioning
+#### Staging Environment
 
-## Files Modified
+```bash
+# .env.staging
+DEBUG=false
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=openai
+PROVIDER_VECTOR_STORE_TYPE=qdrant
+OPENAI_API_KEY=your_staging_openai_key
+QDRANT_API_KEY=your_staging_qdrant_key
+```
 
-1. `app/core/config.py` - Added new configuration constants
-2. `config/env.example` - Updated with all new configuration options
-3. `docs/development/CONFIGURATION_EXTERNALIZATION.md` - This documentation
+#### Production Environment
 
-## Files Requiring Updates
+```bash
+# .env.production
+DEBUG=false
+PROVIDER_EMBEDDING_TYPE=inhouse
+PROVIDER_LLM_TYPE=inhouse
+PROVIDER_VECTOR_STORE_TYPE=inhouse
+INHOUSE_API_KEY=your_production_key
+INHOUSE_EMBEDDING_API_URL=https://prod-embedding-api.company.com
+INHOUSE_LLM_API_URL=https://prod-llm-api.company.com
+INHOUSE_VECTOR_STORE_URL=https://prod-vector-store.company.com
+```
 
-1. `app/main.py` - Use configurable FastAPI settings
-2. `app/domain/services/rag_service.py` - Use configurable RAG settings
-3. `app/infrastructure/external/external_api_service.py` - Use configurable model parameters
-4. `app/infrastructure/document_processing/loader.py` - Use configurable processing settings
+### Configuration Validation
 
-## Conclusion
+The configuration system includes validation to ensure required settings are present:
 
-This configuration externalization effort significantly improves the project's maintainability, flexibility, and deployment readiness. All hardcoded values have been identified and externalized to configuration files, making the application more professional and production-ready.
+```python
+def validate_provider_config(config: Dict[str, Any], provider_type: str) -> None:
+    """Validate provider configuration"""
+    required_fields = {
+        "openai": ["api_key"],
+        "qdrant": ["api_key", "base_url"],
+        "inhouse": ["api_url", "api_key"]
+    }
+    
+    if provider_type not in required_fields:
+        raise ValueError(f"Unknown provider type: {provider_type}")
+    
+    missing_fields = []
+    for field in required_fields[provider_type]:
+        if not config.get(field):
+            missing_fields.append(field)
+    
+    if missing_fields:
+        raise ValueError(f"Missing required fields for {provider_type}: {missing_fields}")
+```
 
-The implementation follows clean code principles and provides a solid foundation for future enhancements and different deployment scenarios. 
+## 🚀 Configuration Best Practices
+
+### 1. Environment Separation
+
+- **Development**: Use development API keys and endpoints
+- **Staging**: Use staging environment with production-like settings
+- **Production**: Use production endpoints and secure configuration
+
+### 2. Security Considerations
+
+- **API Keys**: Never commit API keys to version control
+- **Environment Files**: Use `.env` files for local development
+- **Secrets Management**: Use proper secrets management in production
+- **Access Control**: Limit access to production configuration
+
+### 3. Provider Switching
+
+- **Gradual Migration**: Test new providers in staging first
+- **Configuration Validation**: Validate configuration before switching
+- **Fallback Strategy**: Have fallback providers configured
+- **Monitoring**: Monitor provider performance after switching
+
+### 4. Configuration Validation
+
+```bash
+# Validate configuration before starting
+python -c "
+from app.core.config import Config
+try:
+    Config.get_embedding_provider_config()
+    Config.get_llm_provider_config()
+    Config.get_vector_store_provider_config()
+    print('✅ Configuration is valid')
+except Exception as e:
+    print(f'❌ Configuration error: {e}')
+    exit(1)
+"
+```
+
+## 🔧 Configuration Examples
+
+### Example 1: OpenAI + Qdrant (Default)
+
+```bash
+# .env
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=openai
+PROVIDER_VECTOR_STORE_TYPE=qdrant
+
+OPENAI_API_KEY=sk-your-openai-key
+QDRANT_API_KEY=your-qdrant-key
+QDRANT_URL=https://your-cluster.qdrant.io
+```
+
+### Example 2: In-House Services
+
+```bash
+# .env
+PROVIDER_EMBEDDING_TYPE=inhouse
+PROVIDER_LLM_TYPE=inhouse
+PROVIDER_VECTOR_STORE_TYPE=inhouse
+
+INHOUSE_API_KEY=your-inhouse-key
+INHOUSE_EMBEDDING_API_URL=https://embedding-api.company.com
+INHOUSE_LLM_API_URL=https://llm-api.company.com
+INHOUSE_VECTOR_STORE_URL=https://vector-store.company.com
+```
+
+### Example 3: Mixed Providers
+
+```bash
+# .env
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=inhouse
+PROVIDER_VECTOR_STORE_TYPE=qdrant
+
+OPENAI_API_KEY=sk-your-openai-key
+QDRANT_API_KEY=your-qdrant-key
+QDRANT_URL=https://your-cluster.qdrant.io
+
+INHOUSE_API_KEY=your-inhouse-key
+INHOUSE_LLM_API_URL=https://llm-api.company.com
+```
+
+## 📊 Configuration Monitoring
+
+### Configuration Health Checks
+
+```python
+def check_configuration_health() -> Dict[str, Any]:
+    """Check configuration health and provider availability"""
+    health_status = {
+        "configuration_valid": True,
+        "providers": {},
+        "errors": []
+    }
+    
+    try:
+        # Check embedding provider
+        embedding_config = Config.get_embedding_provider_config()
+        health_status["providers"]["embedding"] = {
+            "type": embedding_config["type"],
+            "configured": True
+        }
+    except Exception as e:
+        health_status["configuration_valid"] = False
+        health_status["errors"].append(f"Embedding provider: {e}")
+    
+    try:
+        # Check LLM provider
+        llm_config = Config.get_llm_provider_config()
+        health_status["providers"]["llm"] = {
+            "type": llm_config["type"],
+            "configured": True
+        }
+    except Exception as e:
+        health_status["configuration_valid"] = False
+        health_status["errors"].append(f"LLM provider: {e}")
+    
+    try:
+        # Check vector store provider
+        vector_config = Config.get_vector_store_provider_config()
+        health_status["providers"]["vector_store"] = {
+            "type": vector_config["type"],
+            "configured": True
+        }
+    except Exception as e:
+        health_status["configuration_valid"] = False
+        health_status["errors"].append(f"Vector store provider: {e}")
+    
+    return health_status
+```
+
+## 🔮 Future Configuration Enhancements
+
+### Planned Features
+
+1. **Configuration Hot Reloading**: Reload configuration without restart
+2. **Configuration Validation**: Enhanced validation with schemas
+3. **Configuration Encryption**: Encrypt sensitive configuration values
+4. **Configuration Templates**: Pre-built configuration templates
+5. **Configuration Migration**: Tools for migrating between configurations
+
+### Configuration Schema
+
+```python
+# Future configuration schema
+from pydantic import BaseSettings
+
+class ProviderConfig(BaseSettings):
+    type: str
+    api_key: str
+    api_url: str
+    model: str = "default"
+    
+    class Config:
+        env_file = ".env"
+
+class AppConfig(BaseSettings):
+    embedding_provider: ProviderConfig
+    llm_provider: ProviderConfig
+    vector_store_provider: ProviderConfig
+    
+    class Config:
+        env_file = ".env"
+```
+
+## 📚 Related Documentation
+
+- [Plugin Architecture Guide](PLUGIN_ARCHITECTURE.md) - Provider system documentation
+- [Architecture Guide](architecture.md) - System architecture overview
+- [API Documentation](../api/overview.md) - API configuration examples
+- [Deployment Guide](../deployment/DOCKER_DEPLOYMENT_GUIDE.md) - Deployment configuration 

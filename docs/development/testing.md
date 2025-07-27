@@ -1,350 +1,420 @@
 # Testing Guide
 
-This document provides comprehensive guidance for testing the RAG LLM API, including unit tests, integration tests, and end-to-end tests.
+This document provides a comprehensive overview of the testing strategy for the RAG LLM API, including unit tests, integration tests, end-to-end tests, and performance optimizations with the new **Plugin Architecture**.
 
-## 🏗️ Test Architecture
+## 🧪 Testing Strategy
 
-### Test Categories
+### Overview
 
-1. **Unit Tests** (`tests/unit/`): Test individual components in isolation
-2. **Integration Tests** (`tests/integration/`): Test component interactions and API endpoints
-3. **End-to-End Tests** (`tests/e2e/`): Test complete workflows
-4. **Performance Tests**: Test system performance and resource usage
+Our testing architecture follows a strategic approach to balance speed, coverage, and reliability with the new plugin architecture:
 
-### Mocking Strategy
+#### Mocking Strategy (Updated for Plugin Architecture)
 
-#### External API Mocking
-We use a strategic mocking approach to balance test speed and coverage:
-
-- **✅ Mock External APIs**: OpenAI embeddings, Qdrant operations, OpenAI completions
-- **✅ Test Real Business Logic**: RAG service, OCR processing, document handling
-- **✅ Test Real OCR**: Tesseract OCR functionality with mocked external calls
-
-#### Mocking Configuration
-```python
-# Example: Mocking external APIs in integration tests
-@patch('app.infrastructure.external.external_api_service.ExternalAPIService.get_embeddings')
-@patch('app.infrastructure.external.external_api_service.ExternalAPIService.insert_vectors')
-@patch('app.infrastructure.external.external_api_service.ExternalAPIService.create_collection_if_not_exists')
-def test_ocr_functionality(mock_create_collection, mock_insert_vectors, mock_get_embeddings, client):
-    # Setup mocks
-    mock_create_collection.return_value = True
-    mock_get_embeddings.return_value = [[0.1, 0.2, 0.3] * 1536]
-    mock_insert_vectors.return_value = True
-    
-    # Test real OCR functionality with mocked external calls
-    # ... test implementation
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Test Client   │    │   FastAPI App   │    │  Mock Providers │
+│                 │    │                 │    │                 │
+│ • HTTP Requests │◄──►│ • Real Business │◄──►│ • Mock Embedding│
+│ • Response      │    │ • Real OCR      │    │ • Mock LLM      │
+│ • Validation    │    │ • Real Logic    │    │ • Mock Vector   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-## 🚀 Performance Optimizations
+### What We Mock vs. What We Test
 
-### Test Execution Times
+| **Component** | **Mocked** | **Real Testing** | **Rationale** |
+|---------------|------------|------------------|---------------|
+| **Provider APIs** | ✅ Yes | ❌ No | Speed, reliability |
+| **RAG Service** | ❌ No | ✅ Yes | Business logic |
+| **OCR Processing** | ❌ No | ✅ Yes | Real functionality |
+| **Document Loading** | ❌ No | ✅ Yes | File processing |
+| **API Endpoints** | ❌ No | ✅ Yes | Contract validation |
+| **Provider Factory** | ❌ No | ✅ Yes | Provider creation logic |
+| **Service Locator** | ❌ No | ✅ Yes | Provider management |
 
-| **Test Configuration** | **Duration** | **Tests** | **Use Case** |
-|------------------------|--------------|-----------|--------------|
-| **Full Integration Tests** | 153.40s (2:33) | 87 passed | Complete coverage |
-| **Fast Tests Only** | 64.21s (1:04) | 84 passed | Development cycles |
-| **Unit Tests** | ~10-15s | All unit tests | Quick validation |
-
-### Slow Test Management
-
-We mark slow tests with `@pytest.mark.slow` to enable selective execution:
-
-```python
-@pytest.mark.slow
-def test_ocr_text_extraction_accuracy():
-    # This test takes 30+ seconds
-    pass
-```
-
-**Running fast tests only:**
-```bash
-pytest -m "not slow"  # Excludes slow tests
-```
-
-**Running all tests:**
-```bash
-pytest  # Includes all tests
-```
-
-## 📋 Running Tests
-
-### Prerequisites
-
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Install OCR dependencies** (optional but recommended):
-   ```bash
-   # Windows
-   # Download Tesseract from: https://github.com/UB-Mannheim/tesseract/wiki
-   
-   # Linux
-   sudo apt-get install tesseract-ocr poppler-utils
-   
-   # macOS
-   brew install tesseract poppler
-   ```
-
-3. **Set up environment variables**:
-   ```bash
-   cp config/env.example .env
-   # Edit .env with your API keys
-   ```
-
-### Test Commands
-
-#### Run All Tests
-```bash
-# Run all tests
-pytest
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage
-pytest --cov=app
-```
-
-#### Run Specific Test Categories
-```bash
-# Unit tests only
-pytest tests/unit/
-
-# Integration tests only
-pytest tests/integration/
-
-# End-to-end tests only
-pytest tests/e2e/
-
-# OCR tests only
-pytest -m "ocr"
-```
-
-#### Run Fast Tests (Recommended for Development)
-```bash
-# Exclude slow tests
-pytest -m "not slow"
-
-# Fast integration tests only
-pytest tests/integration/ -m "not slow"
-```
-
-#### Run Performance Tests
-```bash
-# Show test durations
-pytest --durations=10
-
-# Run only slow tests
-pytest -m "slow"
-```
-
-## 🧪 Test Categories
-
-### Unit Tests
-
-Test individual components in isolation:
-
-- **RAG Service**: Business logic testing
-- **Document Loader**: File processing and OCR
-- **Vector Store**: Database operations
-- **External API Service**: API call handling
-
-### Integration Tests
-
-Test component interactions and API endpoints:
-
-#### API Endpoint Tests
-- **Health checks**: `/health`, `/`
-- **Document management**: Upload, add text, clear
-- **Question answering**: Ask questions with RAG
-- **Security**: API key validation, rate limiting
-
-#### OCR Functionality Tests
-- **PDF OCR**: Extract text from PDF images
-- **DOCX OCR**: Extract text from DOCX images
-- **Form processing**: Structured data extraction
-- **Performance**: Processing time and memory usage
-
-#### Document Upload Tests
-- **File formats**: PDF, TXT, DOCX support
-- **Error handling**: Invalid files, size limits
-- **Edge cases**: Special characters, Unicode content
-
-### End-to-End Tests
-
-Test complete workflows:
-
-- **Document processing workflow**: Upload → OCR → Search → Answer
-- **RAG chat completions**: Full conversation flow
-- **File upload workflow**: Multiple file types and sizes
-
-## 🔧 Test Configuration
-
-### Pytest Configuration (`pytest.ini`)
-
-```ini
-[tool:pytest]
-markers =
-    slow: marks tests as slow (deselect with '-m "not slow"')
-    unit: marks tests as unit tests
-    integration: marks tests as integration tests
-    e2e: marks tests as end-to-end tests
-    api: marks tests as API tests
-    rag: marks tests as RAG tests
-    document_upload: marks tests as document upload tests
-    ocr: marks tests as OCR tests
-    ocr_integration: marks tests as OCR integration tests
-    ocr_performance: marks tests as OCR performance tests
-    real_ocr: marks tests as real OCR tests
-    ocr_batch: marks tests as OCR batch processing tests
-    ocr_accuracy: marks tests as OCR accuracy tests
-```
-
-### Environment Variables for Testing
-
-```bash
-# Required for external API mocking
-OPENAI_API_KEY=your_openai_key
-QDRANT_API_KEY=your_qdrant_key
-QDRANT_URL=your_qdrant_url
-
-# Optional: Adjust rate limits for testing
-CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR=1000
-```
-
-## 📊 Test Performance
-
-### Performance Benchmarks
+### Performance Impact
 
 | **Test Type** | **Before Mocking** | **After Mocking** | **Improvement** |
 |---------------|-------------------|-------------------|-----------------|
 | **OCR Tests** | 30-60s each | 0.4-1.5s each | 95-98% faster |
 | **Integration Tests** | 161.50s total | 64.21s (fast) | 60% faster |
 | **Full Suite** | ~300-400s | 153.40s | 50-60% faster |
+| **E2E Tests** | ~10-15 minutes | ~4.8 minutes | 50-60% faster |
 
-### Performance Tips
+## 📊 Test Categories
 
-1. **Use fast tests for development**: `pytest -m "not slow"`
-2. **Run specific test files**: `pytest tests/integration/test_ocr_functionality.py`
-3. **Use parallel execution**: `pytest -n auto` (requires pytest-xdist)
-4. **Monitor test durations**: `pytest --durations=10`
+### 1. Unit Tests (`tests/unit/`)
 
-## 🐛 Troubleshooting
+**Purpose**: Test individual components in isolation
+**Scope**: Single function, class, or module
+**Dependencies**: Mocked external dependencies
+**Speed**: Fast execution (~10-15s total)
 
-### Common Issues
-
-#### OCR Tests Failing
-```bash
-# Check if Tesseract is installed
-tesseract --version
-
-# Install Tesseract if missing
-# Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
-# Linux: sudo apt-get install tesseract-ocr
-# macOS: brew install tesseract
-```
-
-#### External API Errors
-```bash
-# Check environment variables
-echo $OPENAI_API_KEY
-echo $QDRANT_API_KEY
-
-# Verify API keys are valid
-# Tests should use mocked APIs, but real keys are needed for some scenarios
-```
-
-#### Test Performance Issues
-```bash
-# Run only fast tests
-pytest -m "not slow"
-
-# Check which tests are slow
-pytest --durations=10
-
-# Run specific test categories
-pytest tests/unit/  # Fast unit tests
-```
-
-### Debug Mode
-
-```bash
-# Run tests with debug output
-pytest -v -s
-
-# Run specific test with debug
-pytest tests/integration/test_ocr_functionality.py::TestOCRFunctionality::test_ocr_extraction_from_pdf_with_image -v -s
-```
-
-## 📝 Writing Tests
-
-### Test Structure
+#### Provider Unit Tests
 
 ```python
-import pytest
-from unittest.mock import patch, AsyncMock
+# Test provider factory
+def test_provider_factory_creates_openai_embedding_provider():
+    config = {"type": "openai", "api_key": "test"}
+    provider = ProviderFactory.create_embedding_provider(config)
+    assert isinstance(provider, OpenAIEmbeddingProvider)
 
-@pytest.mark.integration
-class TestOCRFunctionality:
-    """Test OCR functionality with mocked external APIs."""
-    
-    @patch('app.infrastructure.external.external_api_service.ExternalAPIService.get_embeddings')
-    @patch('app.infrastructure.external.external_api_service.ExternalAPIService.insert_vectors')
-    def test_ocr_extraction(self, mock_insert_vectors, mock_get_embeddings, client):
-        """Test OCR extraction with mocked external APIs."""
-        # Setup mocks
-        mock_get_embeddings.return_value = [[0.1, 0.2, 0.3] * 1536]
-        mock_insert_vectors.return_value = True
-        
-        # Test implementation
-        # ... test logic
-        
-        # Verify mocks were called
-        mock_get_embeddings.assert_called()
-        mock_insert_vectors.assert_called()
+# Test service locator
+def test_service_locator_manages_providers():
+    locator = ServiceLocator()
+    provider = locator.get_embedding_provider()
+    assert provider is not None
 ```
 
-### Best Practices
+#### Service Unit Tests
 
-1. **Mock external APIs**: Always mock OpenAI and Qdrant calls
-2. **Test real business logic**: Let RAG service and OCR run normally
-3. **Use appropriate markers**: Mark tests as `slow`, `integration`, etc.
-4. **Clean up resources**: Remove temporary files in `finally` blocks
-5. **Verify mock calls**: Ensure external APIs are called as expected
+```python
+# Test RAG service with mocked providers
+def test_rag_service_ask_question():
+    mock_embedding = MockEmbeddingProvider()
+    mock_llm = MockLLMProvider()
+    mock_vector = MockVectorStoreProvider()
+    
+    rag_service = RAGService(
+        embedding_provider=mock_embedding,
+        llm_provider=mock_llm,
+        vector_store_provider=mock_vector
+    )
+    
+    result = await rag_service.ask_question("Test question")
+    assert result["success"] is True
+```
 
-## 🔄 Continuous Integration
+### 2. Integration Tests (`tests/integration/`)
+
+**Purpose**: Test component interactions and API endpoints
+**Scope**: Multiple components working together
+**Dependencies**: Real business logic, mocked providers
+**Speed**: Medium execution (64.21s for fast tests)
+
+#### Provider Integration Tests
+
+```python
+# Test provider integration
+def test_rag_service_with_mock_providers():
+    with patch_providers_for_test():
+        rag_service = RAGService()
+        result = await rag_service.ask_question("Test question")
+        assert result["success"] is True
+```
+
+#### API Integration Tests
+
+```python
+# Test API endpoints with mocked providers
+def test_api_endpoints_with_mock_providers():
+    with patch_providers_for_test():
+        response = client.post("/questions/ask", json={"question": "Test"})
+        assert response.status_code == 200
+```
+
+### 3. End-to-End Tests (`tests/e2e/`)
+
+**Purpose**: Test complete user workflows
+**Scope**: Full application functionality
+**Dependencies**: Real external services (test environment)
+**Speed**: Slow execution (included in full suite)
+
+#### E2E Test Categories
+
+1. **Basic API Endpoints**: Health checks, stats, basic operations
+2. **File Upload Functionality**: PDF, DOCX, TXT uploads
+3. **OCR Workflow Processing**: Image text extraction
+4. **Document Processing Workflow**: Complete document lifecycle
+5. **RAG with Knowledge Base Data**: Question answering with data
+6. **RAG Chat Completions**: Chat functionality
+
+## 🔌 Provider Testing
+
+### Mock Provider Implementation
+
+```python
+class MockEmbeddingProvider(EmbeddingProvider):
+    async def get_embeddings(self, texts: List[str]) -> List[List[float]]:
+        return [[0.1] * 1536 for _ in texts]
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        return {"model": "mock-embedding", "dimensions": 1536}
+
+class MockLLMProvider(LLMProvider):
+    async def call_llm(self, messages: List[Dict], **kwargs) -> str:
+        return "Mock response from LLM"
+    
+    async def call_llm_api(self, request: Dict, **kwargs) -> Dict:
+        return {
+            "choices": [{"message": {"content": "Mock response"}}],
+            "usage": {"total_tokens": 10}
+        }
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        return {"model": "mock-llm", "max_tokens": 1000}
+
+class MockVectorStoreProvider(VectorStoreProvider):
+    async def create_collection_if_not_exists(self, collection_name: str) -> bool:
+        return True
+    
+    async def insert_vectors(self, points: List[Dict], collection_name: str) -> bool:
+        return True
+    
+    async def search_vectors(self, query_vector: List[float], top_k: int, collection_name: str) -> List[Dict]:
+        return [{"content": "Mock content", "score": 0.9}]
+```
+
+### Provider Test Helpers
+
+```python
+# Provider test utilities
+def patch_providers_for_test():
+    """Context manager to patch global provider functions"""
+    mock_embedding = MockEmbeddingProvider()
+    mock_llm = MockLLMProvider()
+    mock_vector = MockVectorStoreProvider()
+    
+    with patch('app.infrastructure.providers.get_embedding_provider', return_value=mock_embedding), \
+         patch('app.infrastructure.providers.get_llm_provider', return_value=mock_llm), \
+         patch('app.infrastructure.providers.get_vector_store_provider', return_value=mock_vector):
+        yield {
+            'embedding': mock_embedding,
+            'llm': mock_llm,
+            'vector': mock_vector
+        }
+```
+
+## 🚀 Test Performance Optimizations
+
+### 1. Provider Mocking
+
+**Strategy**: Mock all provider calls
+**Benefit**: 95-98% faster provider-dependent tests
+**Implementation**: Mock provider interfaces and service locator calls
+
+### 2. Selective Test Execution
+
+**Strategy**: Mark slow tests with `@pytest.mark.slow`
+**Benefit**: Fast development cycles (64s vs 153s)
+**Implementation**: `pytest -m "not slow"`
+
+### 3. Real OCR Testing
+
+**Strategy**: Test real Tesseract OCR with mocked providers
+**Benefit**: Verify OCR functionality without network delays
+**Implementation**: Real OCR processing, mocked embeddings
+
+### 4. E2E Test Optimization
+
+**Strategy**: Run E2E tests with real providers but optimized data
+**Benefit**: Validate complete workflows efficiently
+**Implementation**: Smaller test documents, optimized provider calls
+
+## 📋 Test Execution
+
+### Fast Development Testing
+
+```bash
+# Run fast tests (recommended for development)
+pytest -m "not slow"
+
+# Run only integration tests (fast)
+pytest tests/integration/ -m "not slow"
+
+# Run only unit tests
+pytest tests/unit/
+```
+
+### Complete Test Coverage
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=app
+
+# Run with verbose output
+pytest -v
+```
+
+### E2E Testing
+
+```bash
+# Start server first
+python scripts/run.py
+
+# In another terminal, run E2E tests
+python scripts/run_e2e_tests.py
+```
+
+### Provider-Specific Testing
+
+```bash
+# Test provider factory
+pytest tests/unit/test_providers.py
+
+# Test service locator
+pytest tests/unit/test_providers.py::TestServiceLocator
+
+# Test provider integration
+pytest tests/integration/test_plugin_architecture_integration.py
+```
+
+## 📊 Test Results
+
+### Current Test Performance
+
+| **Test Configuration** | **Duration** | **Tests** | **Use Case** |
+|------------------------|--------------|-----------|--------------|
+| **Fast Tests** | 64.21s (1:04) | 84 passed | Development cycles |
+| **Full Suite** | 153.40s (2:33) | 87 passed | Complete coverage |
+| **Unit Tests** | ~10-15s | All unit tests | Quick validation |
+| **E2E Tests** | ~4.8 minutes | 6 categories | Production validation |
+
+### Test Coverage
+
+- **Unit Tests**: 58 tests covering individual components
+- **Integration Tests**: 29 tests covering component interactions
+- **E2E Tests**: 6 test categories covering complete workflows
+- **Provider Tests**: Comprehensive provider system testing
+
+## 🔧 Test Configuration
+
+### pytest Configuration
+
+```ini
+# pytest.ini
+[tool:pytest]
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+addopts = 
+    -v
+    --tb=short
+    --strict-markers
+markers =
+    slow: marks tests as slow (deselect with '-m "not slow"')
+    unit: marks tests as unit tests
+    integration: marks tests as integration tests
+    e2e: marks tests as end-to-end tests
+    ocr: marks tests as OCR-related
+    providers: marks tests as provider-related
+```
+
+### Test Environment Variables
+
+```bash
+# Test-specific environment variables
+TESTING=true
+MOCK_PROVIDERS=true
+OCR_CONFIDENCE_THRESHOLD=60
+CLEAR_ENDPOINT_API_KEY=test-api-key
+CLEAR_ENDPOINT_CONFIRMATION_TOKEN=test-token
+```
+
+## 🐛 Debugging Tests
+
+### Common Test Issues
+
+#### 1. Provider Mocking Issues
+
+```python
+# Problem: Provider not being mocked correctly
+# Solution: Use proper patching
+with patch('app.infrastructure.providers.get_embedding_provider') as mock:
+    mock.return_value = MockEmbeddingProvider()
+    # Test code here
+```
+
+#### 2. Async Test Issues
+
+```python
+# Problem: Async test not running
+# Solution: Add @pytest.mark.asyncio decorator
+@pytest.mark.asyncio
+async def test_async_function():
+    result = await async_function()
+    assert result is not None
+```
+
+#### 3. E2E Test Issues
+
+```python
+# Problem: E2E test failing
+# Solution: Check server is running and providers are configured
+# Ensure .env file has correct test configuration
+```
+
+### Debug Commands
+
+```bash
+# Run specific test with verbose output
+pytest tests/unit/test_providers.py::test_specific_function -v -s
+
+# Run tests with coverage and show missing lines
+pytest --cov=app --cov-report=term-missing
+
+# Run tests and stop on first failure
+pytest -x
+
+# Run tests and show local variables on failure
+pytest -l
+```
+
+## 📈 Continuous Integration
 
 ### CI/CD Pipeline
 
-The test suite is designed to run efficiently in CI/CD environments:
-
 ```yaml
 # Example GitHub Actions workflow
-- name: Run Fast Tests
-  run: pytest -m "not slow" --cov=app
-
-- name: Run Full Test Suite
-  run: pytest --cov=app
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run fast tests
+        run: pytest -m "not slow"
+      - name: Run full test suite
+        run: pytest
 ```
 
-### Test Reports
+### Test Quality Gates
 
-Generate test reports for CI/CD:
+- **Unit Tests**: Must pass 100%
+- **Integration Tests**: Must pass 100%
+- **Code Coverage**: Minimum 80%
+- **Provider Tests**: Must pass 100%
 
-```bash
-# Generate coverage report
-pytest --cov=app --cov-report=html --cov-report=xml
+## 🔮 Future Testing Enhancements
 
-# Generate JUnit XML report
-pytest --junitxml=test-results.xml
-```
+### Planned Improvements
 
-## 📚 Additional Resources
+1. **Performance Testing**: Load testing with multiple providers
+2. **Provider Compatibility Testing**: Test provider switching
+3. **Security Testing**: Provider authentication testing
+4. **Contract Testing**: Provider API contract validation
 
-- [Pytest Documentation](https://docs.pytest.org/)
-- [Mock Documentation](https://docs.python.org/3/library/unittest.mock.html)
-- [OCR Setup Guide](ocr_setup_guide.md)
-- [API Documentation](api/overview.md) 
+### Test Automation
+
+1. **Automated Provider Testing**: Test new provider implementations
+2. **Performance Regression Testing**: Monitor test performance over time
+3. **Provider Health Monitoring**: Monitor provider availability in tests
+
+## 📚 Related Documentation
+
+- [Plugin Architecture Guide](PLUGIN_ARCHITECTURE.md) - Provider system documentation
+- [Architecture Guide](architecture.md) - System architecture overview
+- [API Documentation](../api/overview.md) - API testing examples
+- [Security Guide](CLEAR_ENDPOINT_SECURITY.md) - Security testing
+- [OCR Setup Guide](OCR_SETUP_GUIDE.md) - OCR testing configuration 
