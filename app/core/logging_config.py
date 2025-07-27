@@ -69,7 +69,7 @@ class StructuredJSONFormatter(logging.Formatter):
             log_entry.update(record.extra_fields)
         
         # Add exception info
-        if record.exc_info:
+        if record.exc_info and record.exc_info != (None, None, None):
             log_entry["exception"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),

@@ -134,6 +134,7 @@ class TestStructuredJSONFormatter:
         try:
             raise ValueError("Test exception")
         except ValueError:
+            import sys
             record = logging.LogRecord(
                 name="test_logger",
                 level=logging.ERROR,
@@ -141,7 +142,7 @@ class TestStructuredJSONFormatter:
                 lineno=10,
                 msg="Test error",
                 args=(),
-                exc_info=True
+                exc_info=sys.exc_info()
             )
         
         formatted = formatter.format(record)
