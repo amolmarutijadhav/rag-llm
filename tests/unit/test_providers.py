@@ -228,6 +228,7 @@ class TestOpenAIEmbeddingProvider:
             OpenAIEmbeddingProvider(config)
 
     @patch('app.infrastructure.providers.openai_provider.OpenAIEmbeddingProvider._make_request')
+    @pytest.mark.asyncio
     async def test_get_embeddings(self, mock_request, provider):
         """Test getting embeddings"""
         # Mock response
@@ -275,6 +276,7 @@ class TestOpenAILLMProvider:
         assert provider.default_model == "gpt-3.5-turbo"
 
     @patch('app.infrastructure.providers.openai_provider.OpenAILLMProvider._make_request')
+    @pytest.mark.asyncio
     async def test_call_llm(self, mock_request, provider):
         """Test calling LLM"""
         # Mock response
@@ -296,6 +298,7 @@ class TestOpenAILLMProvider:
         assert response == "This is a test response"
 
     @patch('app.infrastructure.providers.openai_provider.OpenAILLMProvider._make_request')
+    @pytest.mark.asyncio
     async def test_call_llm_api_full_response(self, mock_request, provider):
         """Test calling LLM API with full response"""
         # Mock response
@@ -353,6 +356,7 @@ class TestQdrantVectorStoreProvider:
         assert provider._get_search_url(collection_name) == "https://qdrant.example.com/collections/test_collection/points/search"
 
     @patch('app.infrastructure.providers.qdrant_provider.QdrantVectorStoreProvider._make_request')
+    @pytest.mark.asyncio
     async def test_create_collection_if_not_exists(self, mock_request, provider):
         """Test creating collection if it doesn't exist"""
         # Mock collection doesn't exist (404)
@@ -364,6 +368,7 @@ class TestQdrantVectorStoreProvider:
         assert mock_request.call_count == 2
 
     @patch('app.infrastructure.providers.qdrant_provider.QdrantVectorStoreProvider._make_request')
+    @pytest.mark.asyncio
     async def test_insert_vectors(self, mock_request, provider):
         """Test inserting vectors"""
         mock_request.return_value = Mock()
@@ -381,6 +386,7 @@ class TestQdrantVectorStoreProvider:
         assert result is True
 
     @patch('app.infrastructure.providers.qdrant_provider.QdrantVectorStoreProvider._make_request')
+    @pytest.mark.asyncio
     async def test_search_vectors(self, mock_request, provider):
         """Test searching vectors"""
         # Mock response

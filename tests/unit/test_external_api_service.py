@@ -3,7 +3,6 @@ from unittest.mock import patch, AsyncMock, Mock
 from app.infrastructure.external.external_api_service import ExternalAPIService
 from app.core.config import Config
 
-@pytest.mark.asyncio
 class TestExternalAPIService:
     """Test suite for ExternalAPIService"""
     
@@ -12,6 +11,7 @@ class TestExternalAPIService:
         self.api_service = ExternalAPIService()
     
     @patch('httpx.AsyncClient.post')
+    @pytest.mark.asyncio
     async def test_get_embeddings_success(self, mock_post):
         """Test successful embedding generation"""
         # Mock response
@@ -35,6 +35,7 @@ class TestExternalAPIService:
     
     @patch('httpx.AsyncClient.put')
     @patch('httpx.AsyncClient.get')
+    @pytest.mark.asyncio
     async def test_insert_vectors_success(self, mock_get, mock_put):
         """Test successful vector insertion"""
         # Mock collection check response (collection doesn't exist)
@@ -63,6 +64,7 @@ class TestExternalAPIService:
         assert mock_put.call_count == 2
     
     @patch('httpx.AsyncClient.post')
+    @pytest.mark.asyncio
     async def test_search_vectors_success(self, mock_post):
         """Test successful vector search"""
         # Mock response
@@ -89,6 +91,7 @@ class TestExternalAPIService:
         mock_post.assert_called_once()
     
     @patch('httpx.AsyncClient.post')
+    @pytest.mark.asyncio
     async def test_call_llm_success(self, mock_post):
         """Test successful LLM call"""
         # Mock response
