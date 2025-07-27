@@ -308,7 +308,7 @@ class RAGService:
             })
             
             search_results = await self.vector_store_provider.search_vectors(
-                question_vector, top_k, Config.COLLECTION_NAME
+                question_vector, top_k, Config.QDRANT_COLLECTION_NAME
             )
             
             logger.info("Vector search completed successfully", extra={
@@ -434,7 +434,7 @@ class RAGService:
         })
         
         try:
-            stats = self.vector_store_provider.get_collection_stats(Config.COLLECTION_NAME)
+            stats = self.vector_store_provider.get_collection_stats(Config.QDRANT_COLLECTION_NAME)
             
             logger.info("Collection statistics retrieved successfully", extra={
                 'extra_fields': {
@@ -481,11 +481,11 @@ class RAGService:
         
         try:
             # Get stats before clearing
-            stats = self.vector_store_provider.get_collection_stats(Config.COLLECTION_NAME)
+            stats = self.vector_store_provider.get_collection_stats(Config.QDRANT_COLLECTION_NAME)
             total_documents = stats.get('total_documents', 0)
             
             # Clear all points from the collection
-            success = self.vector_store_provider.delete_all_points(Config.COLLECTION_NAME)
+            success = self.vector_store_provider.delete_all_points(Config.QDRANT_COLLECTION_NAME)
             
             if success:
                 logger.warning("Knowledge base cleared successfully", extra={

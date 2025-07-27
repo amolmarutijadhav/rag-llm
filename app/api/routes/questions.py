@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.domain.models import QuestionRequest, QuestionResponse
+from app.domain.models import QuestionRequest, QuestionResponse, StatsResponse
 from app.domain.services.rag_service import RAGService
 from app.core.logging_config import get_logger, get_correlation_id
 

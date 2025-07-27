@@ -86,13 +86,15 @@ class TestRAGService:
             return service
 
     @pytest.mark.asyncio
-    async def test_ask_question_success(self, rag_service, mock_vector_store, mock_llm_provider):
+    async def test_ask_question_success(self, rag_service, mock_vector_store_provider, mock_llm_provider):
         """Test successful question asking."""
         # Mock search results
-        mock_vector_store.search.return_value = [
+        mock_vector_store_provider.search_vectors.return_value = [
             {
-                "content": "Python was created by Guido van Rossum",
-                "metadata": {"source": "test.txt"},
+                "payload": {
+                    "content": "Python was created by Guido van Rossum",
+                    "metadata": {"source": "test.txt"}
+                },
                 "score": 0.95
             }
         ]
@@ -108,9 +110,9 @@ class TestRAGService:
         assert result["sources"][0]["score"] == 0.95
 
     @pytest.mark.asyncio
-    async def test_ask_question_no_results(self, rag_service, mock_vector_store):
+    async def test_ask_question_no_results(self, rag_service, mock_vector_store_provider):
         """Test question asking with no search results."""
-        mock_vector_store.search.return_value = []
+        mock_vector_store_provider.search_vectors.return_value = []
         
         result = await rag_service.ask_question("Unknown question", top_k=3)
         
@@ -118,17 +120,17 @@ class TestRAGService:
         assert len(result["sources"]) == 0
 
     @pytest.mark.asyncio
-    async def test_ask_question_llm_error(self, rag_service, mock_vector_store, mock_llm_provider):
+    async def test_ask_question_llm_error(self, rag_service, mock_vector_store_provider, mock_llm_provider):
         """Test question asking when LLM fails."""
-        mock_vector_store.search.return_value = [
-            {"content": "test", "metadata": {}, "score": 0.9}
+        mock_vector_store_provider.search_vectors.return_value = [
+            {"payload": {"content": "test", "metadata": {}}, "score": 0.9}
         ]
         
         mock_llm_provider.call_llm.side_effect = Exception("LLM error")
         
         result = await rag_service.ask_question("test", top_k=3)
         assert result["success"] == False
-        assert "Error generating answer" in result["answer"]
+        assert "Error processing question" in result["answer"]
 
     @pytest.mark.asyncio
     async def test_add_document_success(self, rag_service, mock_document_loader, mock_vector_store):
@@ -189,34 +191,34 @@ class TestRAGService:
         assert result["success"] == False
         assert "Text cannot be empty" in result["message"]
 
-    def test_get_stats_success(self, rag_service, mock_vector_store, mock_embedding_provider, mock_llm_provider):
+    def test_get_stats_success(self, rag_service, mock_vector_store_provider, mock_embedding_provider, mock_llm_provider):
         """Test successful stats retrieval."""
         result = rag_service.get_stats()
         
         assert result["success"] == True
-        assert "vector_store" in result
-        assert "embedding_provider" in result
-        assert "llm_provider" in result
+        assert "total_documents" in result
+        assert "collection_name" in result
+        assert "vector_size" in result
 
-    def test_get_stats_vector_store_error(self, rag_service, mock_vector_store):
+    def test_get_stats_vector_store_error(self, rag_service, mock_vector_store_provider):
         """Test stats retrieval when vector store fails."""
-        mock_vector_store.get_collection_stats.side_effect = Exception("Stats error")
+        mock_vector_store_provider.get_collection_stats.side_effect = Exception("Stats error")
         
         result = rag_service.get_stats()
         
         assert result["success"] == False
-        assert "Error getting stats" in result["message"]
+        assert "Error getting statistics" in result["message"]
 
-    def test_clear_knowledge_base_success(self, rag_service, mock_vector_store):
+    def test_clear_knowledge_base_success(self, rag_service, mock_vector_store_provider):
         """Test successful knowledge base clearing."""
         result = rag_service.clear_knowledge_base()
         
         assert result["success"] == True
         assert "cleared successfully" in result["message"]
 
-    def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
+    def test_clear_knowledge_base_error(self, rag_service, mock_vector_store_provider):
         """Test knowledge base clearing when it fails."""
-        mock_vector_store.clear_all_points.return_value = False
+        mock_vector_store_provider.delete_all_points.return_value = False
         
         result = rag_service.clear_knowledge_base()
         

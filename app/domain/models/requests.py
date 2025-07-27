@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator
-from typing import Optional
+from typing import Optional, List
 
 class QuestionRequest(BaseModel):
     question: str
@@ -30,4 +30,16 @@ class SecureClearRequest(BaseModel):
     def confirmation_token_must_not_be_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Confirmation token cannot be empty')
-        return v.strip() 
+        return v.strip()
+
+class ChatMessage(BaseModel):
+    """Model for chat messages"""
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    """Request model for chat completions"""
+    model: str
+    messages: List[ChatMessage]
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 1000 

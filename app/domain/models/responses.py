@@ -27,4 +27,10 @@ class HealthResponse(BaseModel):
     """Response model for health check"""
     status: str
     version: str
-    timestamp: str 
+    timestamp: str
+
+class ChatCompletionResponse(BaseModel):
+    """Response model for chat completions"""
+    model: str
+    choices: List[Dict[str, Any]]
+    usage: Optional[Dict[str, Any]] = None 
