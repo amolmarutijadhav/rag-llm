@@ -65,6 +65,17 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
     
     async def analyze_conversation(self, messages: List[ChatMessage]) -> Dict[str, Any]:
         """Analyze conversation to extract topics and context"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Starting conversation analysis", extra={
+            'extra_fields': {
+                'event_type': 'topic_tracking_strategy_analysis_start',
+                'strategy': self.get_strategy_name(),
+                'messages_count': len(messages),
+                'correlation_id': correlation_id
+            }
+        })
+        
         topics = []
         entities = []
         context_clues = []
@@ -82,16 +93,42 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
                 # Extract entities from assistant responses
                 entities.extend(self._extract_entities(message.content))
         
-        return {
+        result = {
             "topics": list(set(topics)),
             "entities": list(set(entities)),
             "context_clues": context_clues,
             "conversation_length": len(messages),
             "last_user_message": next((msg.content for msg in reversed(messages) if msg.role == "user"), "")
         }
+        
+        logger.debug("Conversation analysis completed", extra={
+            'extra_fields': {
+                'event_type': 'topic_tracking_strategy_analysis_complete',
+                'strategy': self.get_strategy_name(),
+                'topics_count': len(result['topics']),
+                'entities_count': len(result['entities']),
+                'context_clues_count': len(result['context_clues']),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return result
     
     async def generate_enhanced_queries(self, question: str, context: Dict[str, Any]) -> List[str]:
         """Generate enhanced queries based on conversation context"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Starting enhanced query generation", extra={
+            'extra_fields': {
+                'event_type': 'topic_tracking_strategy_query_generation_start',
+                'strategy': self.get_strategy_name(),
+                'original_question': question,
+                'topics_count': len(context.get("topics", [])),
+                'entities_count': len(context.get("entities", [])),
+                'correlation_id': correlation_id
+            }
+        })
+        
         queries = [question]  # Always include original question
         
         # Add topic-based queries
@@ -108,7 +145,19 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
             context_clue = context["context_clues"][-1]  # Use last context clue
             queries.append(f"{context_clue} {question}")
         
-        return list(set(queries))  # Remove duplicates
+        unique_queries = list(set(queries))  # Remove duplicates
+        
+        logger.debug("Enhanced query generation completed", extra={
+            'extra_fields': {
+                'event_type': 'topic_tracking_strategy_query_generation_complete',
+                'strategy': self.get_strategy_name(),
+                'original_queries_count': len(queries),
+                'unique_queries_count': len(unique_queries),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return unique_queries
     
     def _extract_entities(self, text: str) -> List[str]:
         """Simple entity extraction (can be enhanced with NLP)"""
@@ -125,6 +174,17 @@ class EntityExtractionStrategy(ConversationAnalysisStrategy):
     
     async def analyze_conversation(self, messages: List[ChatMessage]) -> Dict[str, Any]:
         """Analyze conversation focusing on entity extraction"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Starting entity extraction analysis", extra={
+            'extra_fields': {
+                'event_type': 'entity_extraction_strategy_analysis_start',
+                'strategy': self.get_strategy_name(),
+                'messages_count': len(messages),
+                'correlation_id': correlation_id
+            }
+        })
+        
         entities = []
         relationships = []
         
@@ -133,15 +193,40 @@ class EntityExtractionStrategy(ConversationAnalysisStrategy):
                 entities.extend(self._extract_entities(message.content))
                 relationships.extend(self._extract_relationships(message.content))
         
-        return {
+        result = {
             "entities": list(set(entities)),
             "relationships": list(set(relationships)),
             "conversation_length": len(messages),
             "last_user_message": next((msg.content for msg in reversed(messages) if msg.role == "user"), "")
         }
+        
+        logger.debug("Entity extraction analysis completed", extra={
+            'extra_fields': {
+                'event_type': 'entity_extraction_strategy_analysis_complete',
+                'strategy': self.get_strategy_name(),
+                'entities_count': len(result['entities']),
+                'relationships_count': len(result['relationships']),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return result
     
     async def generate_enhanced_queries(self, question: str, context: Dict[str, Any]) -> List[str]:
         """Generate entity-aware queries"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Starting entity-aware query generation", extra={
+            'extra_fields': {
+                'event_type': 'entity_extraction_strategy_query_generation_start',
+                'strategy': self.get_strategy_name(),
+                'original_question': question,
+                'entities_count': len(context.get("entities", [])),
+                'relationships_count': len(context.get("relationships", [])),
+                'correlation_id': correlation_id
+            }
+        })
+        
         queries = [question]
         
         # Add entity-based queries
@@ -153,7 +238,19 @@ class EntityExtractionStrategy(ConversationAnalysisStrategy):
         for relationship in context.get("relationships", [])[:2]:
             queries.append(f"{relationship} {question}")
         
-        return list(set(queries))
+        unique_queries = list(set(queries))
+        
+        logger.debug("Entity-aware query generation completed", extra={
+            'extra_fields': {
+                'event_type': 'entity_extraction_strategy_query_generation_complete',
+                'strategy': self.get_strategy_name(),
+                'original_queries_count': len(queries),
+                'unique_queries_count': len(unique_queries),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return unique_queries
     
     def _extract_entities(self, text: str) -> List[str]:
         """Extract entities from text"""
@@ -504,6 +601,15 @@ class ConversationStrategyFactory:
     
     def get_strategy(self, request: ChatCompletionRequest) -> ConversationAnalysisStrategy:
         """Determine the best strategy based on request characteristics"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Determining conversation analysis strategy", extra={
+            'extra_fields': {
+                'event_type': 'strategy_factory_strategy_selection_start',
+                'messages_count': len(request.messages),
+                'correlation_id': correlation_id
+            }
+        })
         
         # Analyze request to determine strategy
         messages = request.messages
@@ -512,14 +618,41 @@ class ConversationStrategyFactory:
         
         # If there are system messages with specific instructions, use topic tracking
         if system_messages and any("entity" in msg.content.lower() for msg in system_messages):
-            return self.strategies["entity_extraction"]
+            selected_strategy = "entity_extraction"
+            logger.debug("Entity extraction strategy selected", extra={
+                'extra_fields': {
+                    'event_type': 'strategy_factory_strategy_selected',
+                    'strategy': selected_strategy,
+                    'reason': 'entity_instruction_in_system_message',
+                    'correlation_id': correlation_id
+                }
+            })
+            return self.strategies[selected_strategy]
         
         # If conversation is long, use topic tracking
         if len(messages) > 5:
-            return self.strategies["topic_tracking"]
+            selected_strategy = "topic_tracking"
+            logger.debug("Topic tracking strategy selected", extra={
+                'extra_fields': {
+                    'event_type': 'strategy_factory_strategy_selected',
+                    'strategy': selected_strategy,
+                    'reason': 'long_conversation',
+                    'correlation_id': correlation_id
+                }
+            })
+            return self.strategies[selected_strategy]
         
         # Default to topic tracking
-        return self.strategies["topic_tracking"]
+        selected_strategy = "topic_tracking"
+        logger.debug("Topic tracking strategy selected (default)", extra={
+            'extra_fields': {
+                'event_type': 'strategy_factory_strategy_selected',
+                'strategy': selected_strategy,
+                'reason': 'default_strategy',
+                'correlation_id': correlation_id
+            }
+        })
+        return self.strategies[selected_strategy]
 
 class ChatCompletionPluginManager:
     """Manages the execution of chat completion plugins"""
