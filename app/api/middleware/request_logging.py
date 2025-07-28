@@ -81,8 +81,10 @@ class EnhancedRequestLoggingMiddleware:
             sanitized_headers = self._sanitize_headers(headers)
             
             # Get request body if enabled and not too large
+            # NOTE: Don't read body for POST requests to avoid consuming the stream
+            # that FastAPI needs for parameter parsing
             request_body = None
-            if self.log_request_body and request.method in ['POST', 'PUT', 'PATCH']:
+            if self.log_request_body and request.method in ['PUT', 'PATCH']:
                 request_body = await self._get_request_body(request)
             
             # Log request event
