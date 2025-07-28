@@ -185,12 +185,140 @@ RAG-enhanced chat completions for multi-agentic systems.
     "completion_tokens": 45,
     "total_tokens": 195
   },
-  "rag_metadata": {
-    "agent_persona_preserved": true,
-    "context_documents_found": 2,
-    "original_message_count": 2,
-    "enhanced_message_count": 2
+  "sources": [
+    {
+      "content": "Product specifications from documentation",
+      "metadata": {"source": "product_manual.pdf"},
+      "score": 0.95
+    }
+  ]
+}
+```
+
+### Enhanced Chat Completions
+
+#### POST /enhanced-chat/completions
+**Conversation-aware RAG-enhanced chat completions** with advanced features including:
+- **Conversation Context Analysis**: Analyzes full conversation history
+- **Dynamic Strategy Selection**: Automatically selects optimal processing strategy
+- **Multi-Query RAG**: Generates multiple enhanced queries for better retrieval
+- **Plugin Architecture**: Extensible processing pipeline
+- **Rich Metadata**: Detailed processing information
+
+**Request Body:**
+```json
+{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a technical support specialist for software products."
+    },
+    {
+      "role": "user",
+      "content": "I'm having trouble installing the software."
+    },
+    {
+      "role": "assistant",
+      "content": "I can help you with the installation. What operating system are you using?"
+    },
+    {
+      "role": "user",
+      "content": "Windows 10. I get a permission error."
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1000
+}
+```
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-enhanced-1234567890",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-3.5-turbo",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Based on your Windows 10 system and the permission error you're experiencing, here are the steps to resolve this issue..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 250,
+    "completion_tokens": 120,
+    "total_tokens": 370
+  },
+  "sources": [
+    {
+      "content": "Windows 10 installation troubleshooting guide",
+      "metadata": {"source": "installation_guide.pdf"},
+      "score": 0.92
+    }
+  ],
+  "metadata": {
+    "conversation_aware": true,
+    "strategy_used": "topic_tracking",
+    "enhanced_queries_count": 4,
+    "conversation_context": {
+      "topics": ["software", "installation", "permission", "error", "windows"],
+      "entities": ["Windows 10", "permission error"],
+      "conversation_length": 4
+    },
+    "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
   }
+}
+```
+
+#### GET /enhanced-chat/strategies
+Get available conversation analysis strategies.
+
+**Response:**
+```json
+{
+  "strategies": [
+    {
+      "name": "topic_tracking",
+      "description": "Tracks conversation topics and generates topic-aware queries",
+      "features": ["topic_extraction", "context_awareness", "conversation_flow"]
+    },
+    {
+      "name": "entity_extraction",
+      "description": "Extracts entities and relationships for enhanced query generation",
+      "features": ["entity_recognition", "relationship_mapping", "semantic_analysis"]
+    }
+  ]
+}
+```
+
+#### GET /enhanced-chat/plugins
+Get available processing plugins.
+
+**Response:**
+```json
+{
+  "plugins": [
+    {
+      "name": "conversation_context",
+      "description": "Analyzes conversation context and extracts relevant information",
+      "priority": "HIGH"
+    },
+    {
+      "name": "multi_query_rag",
+      "description": "Generates multiple enhanced queries for improved document retrieval",
+      "priority": "NORMAL"
+    },
+    {
+      "name": "response_enhancement",
+      "description": "Enhances final response with context and metadata",
+      "priority": "LOW"
+    }
+  ]
 }
 ```
 
@@ -213,4 +341,5 @@ RAG-enhanced chat completions for multi-agentic systems.
 - **File Upload Errors**: Invalid format, file too large
 - **Processing Errors**: Document processing failures
 - **API Errors**: External service failures
-- **Validation Errors**: Invalid request data 
+- **Validation Errors**: Invalid request data
+- **Enhanced Chat Errors**: Missing messages, no user message, strategy selection failures 

@@ -34,7 +34,7 @@ Used for RAG-enhanced chat completions.
 ```python
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[Dict[str, str]]
+    messages: List[ChatMessage]
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 1000
     # Additional OpenAI parameters as needed
@@ -42,9 +42,22 @@ class ChatCompletionRequest(BaseModel):
 
 **Fields:**
 - `model` (str, required): The model to use (e.g., "gpt-3.5-turbo")
-- `messages` (List[Dict], required): List of message objects
+- `messages` (List[ChatMessage], required): List of message objects
 - `temperature` (float, optional): Response randomness (default: 0.7)
 - `max_tokens` (int, optional): Maximum tokens in response (default: 1000)
+
+### ChatMessage
+Individual message in a chat conversation.
+
+```python
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+```
+
+**Fields:**
+- `role` (str, required): Message role ("system", "user", "assistant")
+- `content` (str, required): Message content
 
 ## Response Models
 
@@ -145,8 +158,9 @@ class ChatCompletionResponse(BaseModel):
     created: int
     model: str
     choices: List[Dict[str, Any]]
-    usage: Dict[str, int]
-    rag_metadata: Dict[str, Any]
+    usage: Optional[Dict[str, int]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+    metadata: Optional[Dict[str, Any]] = None
 ```
 
 **Fields:**
@@ -155,16 +169,56 @@ class ChatCompletionResponse(BaseModel):
 - `created` (int): Unix timestamp
 - `model` (str): Model used
 - `choices` (List[Dict]): Generated responses
-- `usage` (Dict): Token usage statistics
-- `rag_metadata` (Dict): RAG processing metadata
+- `usage` (Dict, optional): Token usage statistics
+- `sources` (List[Dict], optional): Source documents with metadata
+- `metadata` (Dict, optional): Enhanced processing metadata
 
-### RAG Metadata Structure
+### Enhanced Chat Completion Metadata Structure
 ```python
 {
-    "agent_persona_preserved": True,
-    "context_documents_found": 2,
-    "original_message_count": 2,
-    "enhanced_message_count": 2
+    "conversation_aware": True,
+    "strategy_used": "topic_tracking",
+    "enhanced_queries_count": 4,
+    "conversation_context": {
+        "topics": ["software", "installation", "permission"],
+        "entities": ["Windows 10", "permission error"],
+        "conversation_length": 4
+    },
+    "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+}
+```
+
+### Strategy Response
+Response for available conversation analysis strategies.
+
+```python
+class StrategyResponse(BaseModel):
+    strategies: List[Dict[str, Any]]
+```
+
+**Strategy Structure:**
+```python
+{
+    "name": "topic_tracking",
+    "description": "Tracks conversation topics and generates topic-aware queries",
+    "features": ["topic_extraction", "context_awareness", "conversation_flow"]
+}
+```
+
+### Plugin Response
+Response for available processing plugins.
+
+```python
+class PluginResponse(BaseModel):
+    plugins: List[Dict[str, Any]]
+```
+
+**Plugin Structure:**
+```python
+{
+    "name": "conversation_context",
+    "description": "Analyzes conversation context and extracts relevant information",
+    "priority": "HIGH"
 }
 ```
 
@@ -187,6 +241,94 @@ class ChatCompletionResponse(BaseModel):
 - First message must be `system` role (agent persona)
 - Must contain at least one `user` message
 - Supports multiple agents with different personas
+
+## Enhanced Chat Completion Models
+
+### Processing Context
+Internal context object used by the enhanced chat completion service.
+
+```python
+@dataclass
+class ProcessingContext:
+    request: ChatCompletionRequest
+    strategy: Optional[str] = None
+    conversation_context: Optional[Dict[str, Any]] = None
+    enhanced_queries: Optional[List[str]] = None
+    rag_results: Optional[List[Dict[str, Any]]] = None
+    response_data: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+```
+
+### Conversation Analysis Strategy
+Abstract base class for conversation analysis strategies.
+
+```python
+class ConversationAnalysisStrategy(ABC):
+    @abstractmethod
+    async def analyze_conversation(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        """Analyze conversation and extract context"""
+        pass
+    
+    @abstractmethod
+    async def generate_enhanced_queries(self, question: str, context: Dict[str, Any]) -> List[str]:
+        """Generate enhanced queries based on conversation context"""
+        pass
+    
+    @abstractmethod
+    def get_strategy_name(self) -> str:
+        """Get the name of this strategy"""
+        pass
+```
+
+### Available Strategies
+
+#### TopicTrackingStrategy
+- **Name**: `topic_tracking`
+- **Description**: Tracks conversation topics and generates topic-aware queries
+- **Features**: Topic extraction, context awareness, conversation flow analysis
+
+#### EntityExtractionStrategy
+- **Name**: `entity_extraction`
+- **Description**: Extracts entities and relationships for enhanced query generation
+- **Features**: Entity recognition, relationship mapping, semantic analysis
+
+### Chat Completion Plugin
+Abstract base class for processing plugins.
+
+```python
+class ChatCompletionPlugin(ABC):
+    @abstractmethod
+    async def process(self, context: ProcessingContext) -> ProcessingContext:
+        """Process the context and return updated context"""
+        pass
+    
+    @abstractmethod
+    def get_priority(self) -> ProcessingPriority:
+        """Get processing priority"""
+        pass
+    
+    @abstractmethod
+    def get_plugin_name(self) -> str:
+        """Get plugin name"""
+        pass
+```
+
+### Available Plugins
+
+#### ConversationContextPlugin
+- **Name**: `conversation_context`
+- **Priority**: HIGH
+- **Description**: Analyzes conversation context and extracts relevant information
+
+#### MultiQueryRAGPlugin
+- **Name**: `multi_query_rag`
+- **Priority**: NORMAL
+- **Description**: Generates multiple enhanced queries for improved document retrieval
+
+#### ResponseEnhancementPlugin
+- **Name**: `response_enhancement`
+- **Priority**: LOW
+- **Description**: Enhances final response with context and metadata
 
 ## Error Models
 
@@ -242,6 +384,11 @@ EMBEDDING_MODEL
 LLM_MODEL
 VECTOR_SIZE
 VECTOR_DISTANCE_METRIC
+
+# Enhanced Chat Configuration
+ENHANCED_CHAT_ENABLED
+DEFAULT_STRATEGY
+PLUGIN_TIMEOUT
 ```
 
 ## Data Types
@@ -255,4 +402,10 @@ VECTOR_DISTANCE_METRIC
 - **Vector Size**: 1536 dimensions
 - **Distance Metric**: Cosine similarity
 - **Embedding Model**: text-embedding-ada-002
-- **LLM Model**: gpt-3.5-turbo (configurable) 
+- **LLM Model**: gpt-3.5-turbo (configurable)
+
+### Enhanced Chat Configuration
+- **Default Strategy**: topic_tracking
+- **Plugin Timeout**: 30 seconds
+- **Max Enhanced Queries**: 5
+- **Context Window**: Full conversation history 

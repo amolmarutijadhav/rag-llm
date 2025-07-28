@@ -1,6 +1,6 @@
 # API Overview
 
-The RAG LLM API provides a comprehensive set of endpoints for document processing, question answering, and knowledge management with **full OCR support**, **plugin architecture for external services**, and **optimized performance**.
+The RAG LLM API provides a comprehensive set of endpoints for document processing, question answering, and knowledge management with **full OCR support**, **plugin architecture for external services**, **conversation-aware enhanced chat completions**, and **optimized performance**.
 
 ## 🚀 Quick Start
 
@@ -40,6 +40,33 @@ QDRANT_API_KEY=your_qdrant_key
 
 For detailed provider information, see [Plugin Architecture Guide](../development/PLUGIN_ARCHITECTURE.md).
 
+## 🧠 Enhanced Chat Completion Architecture
+
+The API now features **conversation-aware enhanced chat completions** with advanced capabilities:
+
+### Key Features
+
+- **🎯 Conversation Context Analysis**: Analyzes full conversation history for better understanding
+- **🔄 Dynamic Strategy Selection**: Automatically selects optimal processing strategy
+- **🔍 Multi-Query RAG**: Generates multiple enhanced queries for improved document retrieval
+- **🔌 Plugin Architecture**: Extensible processing pipeline with priority-based execution
+- **📊 Rich Metadata**: Detailed processing information and analytics
+
+### Available Strategies
+
+| **Strategy** | **Description** | **Use Case** |
+|--------------|-----------------|--------------|
+| `topic_tracking` | Tracks conversation topics and generates topic-aware queries | General conversations, support scenarios |
+| `entity_extraction` | Extracts entities and relationships for enhanced query generation | Data analysis, entity-focused queries |
+
+### Processing Plugins
+
+| **Plugin** | **Priority** | **Description** |
+|------------|--------------|-----------------|
+| `conversation_context` | HIGH | Analyzes conversation context and extracts relevant information |
+| `multi_query_rag` | NORMAL | Generates multiple enhanced queries for improved document retrieval |
+| `response_enhancement` | LOW | Enhances final response with context and metadata |
+
 ## 📋 API Endpoints
 
 ### Health & Status
@@ -64,6 +91,14 @@ For detailed provider information, see [Plugin Architecture Guide](../developmen
 |--------------|------------|-----------------|-------------------|
 | `/questions/ask` | POST | Ask questions with RAG-enhanced answers | None |
 | `/chat/completions` | POST | RAG-enhanced chat completions | None |
+
+### Enhanced Chat Completions
+
+| **Endpoint** | **Method** | **Description** | **Authentication** |
+|--------------|------------|-----------------|-------------------|
+| `/enhanced-chat/completions` | POST | Conversation-aware RAG-enhanced chat completions | None |
+| `/enhanced-chat/strategies` | GET | Get available conversation analysis strategies | None |
+| `/enhanced-chat/plugins` | GET | Get available processing plugins | None |
 
 ## 🔒 Security
 
@@ -98,86 +133,46 @@ curl -X POST "http://localhost:8000/documents/upload" \
   "success": true,
   "message": "Document 'document_with_images.pdf' added successfully",
   "chunks_processed": 5,
-  "extracted_text": "Invoice #12345\nCustomer: John Doe\nAmount: $1,234.56\n..."
+  "ocr_processed": true
 }
 ```
 
-### 2. Add Text
+### 2. Enhanced Chat Completion with Conversation Context
 
 **Request:**
 ```bash
-curl -X POST "http://localhost:8000/documents/add-text" \
-     -H "accept: application/json" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "text": "Python is a programming language created by Guido van Rossum.",
-       "source_name": "python_info"
-     }'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Text added successfully",
-  "chunks_processed": 1
-}
-```
-
-### 3. Ask Question
-
-**Request:**
-```bash
-curl -X POST "http://localhost:8000/questions/ask" \
-     -H "accept: application/json" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "question": "Who created Python?",
-       "top_k": 3
-     }'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "answer": "Python was created by Guido van Rossum.",
-  "sources": [
-    {
-      "content": "Python is a programming language created by Guido van Rossum.",
-      "metadata": {
-        "source": "python_info",
-        "chunk_index": 0
-      },
-      "score": 0.95
-    }
-  ],
-  "context_used": "Python is a programming language created by Guido van Rossum."
-}
-```
-
-### 4. RAG-Enhanced Chat Completions
-
-**Request:**
-```bash
-curl -X POST "http://localhost:8000/chat/completions" \
+curl -X POST "http://localhost:8000/enhanced-chat/completions" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{
        "model": "gpt-3.5-turbo",
        "messages": [
-         {"role": "system", "content": "You are a helpful assistant."},
-         {"role": "user", "content": "What is Python?"}
+         {
+           "role": "system",
+           "content": "You are a technical support specialist."
+         },
+         {
+           "role": "user",
+           "content": "I am having trouble installing the software."
+         },
+         {
+           "role": "assistant",
+           "content": "I can help you. What operating system are you using?"
+         },
+         {
+           "role": "user",
+           "content": "Windows 10. I get a permission error."
+         }
        ],
        "temperature": 0.7,
-       "max_tokens": 500
+       "max_tokens": 1000
      }'
 ```
 
 **Response:**
 ```json
 {
-  "id": "chatcmpl-123",
+  "id": "chatcmpl-enhanced-1234567890",
   "object": "chat.completion",
   "created": 1677652288,
   "model": "gpt-3.5-turbo",
@@ -186,276 +181,226 @@ curl -X POST "http://localhost:8000/chat/completions" \
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Python is a high-level programming language created by Guido van Rossum..."
+        "content": "Based on your Windows 10 system and the permission error..."
       },
       "finish_reason": "stop"
     }
   ],
   "usage": {
-    "prompt_tokens": 107,
-    "completion_tokens": 73,
-    "total_tokens": 180
+    "prompt_tokens": 250,
+    "completion_tokens": 120,
+    "total_tokens": 370
   },
-  "rag_metadata": {
-    "agent_persona_preserved": true,
-    "context_documents_found": 1,
-    "original_message_count": 2,
-    "enhanced_message_count": 2
-  }
-}
-```
-
-### 5. Get Statistics
-
-**Request:**
-```bash
-curl -X GET "http://localhost:8000/questions/stats"
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "vector_store": {
-    "total_documents": 15,
-    "collection_name": "rag-llm-dev",
-    "vector_size": 1536
-  },
-  "supported_formats": [
-    ".pdf",
-    ".txt",
-    ".docx"
+  "sources": [
+    {
+      "content": "Windows 10 installation troubleshooting guide",
+      "metadata": {"source": "installation_guide.pdf"},
+      "score": 0.92
+    }
   ],
-  "chunk_size": 1000,
-  "chunk_overlap": 200,
-  "embedding_provider": {
-    "model": "text-embedding-ada-002",
-    "dimensions": 1536
-  },
-  "llm_provider": {
-    "model": "gpt-3.5-turbo",
-    "max_tokens": 1000
+  "metadata": {
+    "conversation_aware": true,
+    "strategy_used": "topic_tracking",
+    "enhanced_queries_count": 4,
+    "conversation_context": {
+      "topics": ["software", "installation", "permission", "error", "windows"],
+      "entities": ["Windows 10", "permission error"],
+      "conversation_length": 4
+    },
+    "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
   }
 }
 ```
 
-### 6. Clear Knowledge Base (Secure)
+### 3. Get Available Strategies
 
 **Request:**
 ```bash
-curl -X DELETE "http://localhost:8000/documents/clear-secure" \
-     -H "accept: application/json" \
-     -H "X-API-Key: your_secure_api_key" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "confirmation_token": "CONFIRM_DELETE_ALL_DATA",
-       "reason": "Testing cleanup"
-     }'
+curl -X GET "http://localhost:8000/enhanced-chat/strategies"
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Knowledge base cleared successfully",
-  "chunks_processed": null,
-  "extracted_text": null
+  "strategies": [
+    {
+      "name": "topic_tracking",
+      "description": "Tracks conversation topics and generates topic-aware queries",
+      "features": ["topic_extraction", "context_awareness", "conversation_flow"]
+    },
+    {
+      "name": "entity_extraction",
+      "description": "Extracts entities and relationships for enhanced query generation",
+      "features": ["entity_recognition", "relationship_mapping", "semantic_analysis"]
+    }
+  ]
 }
 ```
 
-## 🔄 Data Flow
+## 🏗️ Architecture Overview
 
-### Document Processing Flow
-
-```
-1. Document Upload
-   ↓
-2. File Validation & Processing
-   ↓
-3. Text Extraction (OCR if needed)
-   ↓
-4. Document Chunking
-   ↓
-5. Embedding Generation (via Provider)
-   ↓
-6. Vector Storage (via Provider)
-   ↓
-7. Success Response
-```
-
-### Question Answering Flow
+### Enhanced Chat Completion Flow
 
 ```
-1. Question Input
+1. Request Validation
    ↓
-2. Question Embedding (via Provider)
+2. Strategy Selection (Topic Tracking / Entity Extraction)
    ↓
-3. Vector Search (via Provider)
+3. Conversation Context Analysis
    ↓
-4. Context Retrieval
+4. Enhanced Query Generation
    ↓
-5. LLM Generation (via Provider)
+5. Multi-Query RAG Processing
    ↓
-6. Response Formatting
+6. Response Enhancement
    ↓
-7. Answer with Sources
+7. Metadata Generation
+   ↓
+8. Response Delivery
+```
+
+### Plugin Processing Pipeline
+
+```
+HIGH Priority: Conversation Context Plugin
+    ↓
+NORMAL Priority: Multi-Query RAG Plugin
+    ↓
+LOW Priority: Response Enhancement Plugin
 ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-The API uses externalized configuration with plugin architecture support:
-
 ```bash
-# Provider Type Configuration
-PROVIDER_EMBEDDING_TYPE=openai      # or "inhouse", "cohere"
-PROVIDER_LLM_TYPE=openai           # or "inhouse", "anthropic"
-PROVIDER_VECTOR_STORE_TYPE=qdrant  # or "inhouse", "pinecone"
+# Enhanced Chat Configuration
+ENHANCED_CHAT_ENABLED=true
+DEFAULT_STRATEGY=topic_tracking
+PLUGIN_TIMEOUT=30
+MAX_ENHANCED_QUERIES=5
 
-# OpenAI Provider Configuration
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_API_URL=https://api.openai.com/v1
-EMBEDDING_MODEL=text-embedding-ada-002
-CHAT_MODEL=gpt-3.5-turbo
+# Provider Configuration
+PROVIDER_EMBEDDING_TYPE=openai
+PROVIDER_LLM_TYPE=openai
+PROVIDER_VECTOR_STORE_TYPE=qdrant
 
-# Qdrant Provider Configuration
-QDRANT_API_KEY=your_qdrant_api_key
-QDRANT_URL=your_qdrant_url
-QDRANT_COLLECTION_NAME=rag-llm-dev
-VECTOR_SIZE=1536
-VECTOR_DISTANCE_METRIC=Cosine
+# API Keys
+OPENAI_API_KEY=your_openai_key
+QDRANT_API_KEY=your_qdrant_key
 
-# In-House Provider Configuration (optional)
-INHOUSE_EMBEDDING_API_URL=https://your-inhouse-embedding-api.com
-INHOUSE_LLM_API_URL=https://your-inhouse-llm-api.com
-INHOUSE_VECTOR_STORE_URL=https://your-inhouse-vector-store.com
-INHOUSE_API_KEY=your_inhouse_key
-
-# OCR Configuration
-OCR_CONFIDENCE_THRESHOLD=60
-
-# Security Configuration
-CLEAR_ENDPOINT_API_KEY=your_secure_api_key
-CLEAR_ENDPOINT_CONFIRMATION_TOKEN=your_confirmation_token
-CLEAR_ENDPOINT_RATE_LIMIT_PER_HOUR=10
-ENABLE_CLEAR_ENDPOINT_AUDIT_LOGGING=true
-
-# FastAPI Configuration
-API_TITLE=RAG LLM API
-API_DESCRIPTION=A simple RAG (Retrieval-Augmented Generation) API for document Q&A
-API_VERSION=1.0.0
-
-# CORS Configuration
-CORS_ALLOW_ORIGINS=*
-CORS_ALLOW_CREDENTIALS=True
-CORS_ALLOW_METHODS=*
-CORS_ALLOW_HEADERS=*
-
-# HTTP Configuration
-REQUEST_TIMEOUT=30
-MAX_RETRIES=3
+# Processing Configuration
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
+TOP_K_RESULTS=3
 ```
 
-## 🚀 Performance
+## 📊 Performance Metrics
 
-### Response Times
+### Enhanced Chat Completion Performance
 
-| **Operation** | **Typical Response Time** | **Provider Impact** |
-|---------------|---------------------------|-------------------|
-| **Health Check** | < 100ms | None |
-| **Document Upload** | 2-5s | Embedding + Vector Store |
-| **Text Addition** | 1-3s | Embedding + Vector Store |
-| **Question Answering** | 2-4s | Embedding + Vector Store + LLM |
-| **Chat Completions** | 3-6s | Embedding + Vector Store + LLM |
+- **Average Response Time**: 10-20 seconds (depending on conversation complexity)
+- **Strategy Selection Time**: < 1 second
+- **Plugin Processing Time**: 5-15 seconds
+- **Enhanced Queries Generated**: 3-5 per request
+- **Context Analysis**: Full conversation history
 
-### Provider Performance
+### Scalability Features
 
-The plugin architecture allows for provider-specific optimizations:
+- **Concurrent Processing**: Supports multiple simultaneous requests
+- **Plugin Timeout**: Configurable timeout for plugin processing
+- **Memory Management**: Efficient context handling
+- **Caching**: Strategy and plugin result caching
 
-- **OpenAI Providers**: Optimized for OpenAI API patterns
-- **In-House Providers**: Custom optimizations for internal services
-- **Qdrant Provider**: Optimized for Qdrant Cloud operations
+## 🚀 Getting Started
 
-## 🔒 Security Features
+### 1. Basic Enhanced Chat Completion
 
-### Authentication
+```python
+import requests
 
-- **API Key Authentication**: Required for secure endpoints
-- **Provider-Specific Auth**: Each provider can have different auth methods
-- **Token Rotation**: Support for token refresh mechanisms
-
-### Rate Limiting
-
-- **Per-IP Limits**: Configurable rate limits per IP address
-- **Provider Limits**: Respect provider-specific rate limits
-- **Endpoint Limits**: Different limits for different endpoints
-
-### Audit Logging
-
-All security-sensitive operations are logged:
-
-```json
-{
-  "timestamp": 1753614133.0647714,
-  "operation": "clear_knowledge_base_attempt",
-  "client_ip": "127.0.0.1",
-  "user_agent": "Mozilla/5.0...",
-  "success": true,
-  "details": "Reason: Test verification"
+data = {
+    "model": "gpt-3.5-turbo",
+    "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is the weather like today?"}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000
 }
+
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json=data
+)
+
+print(f"Response: {response.json()['choices'][0]['message']['content']}")
+print(f"Strategy Used: {response.json()['metadata']['strategy_used']}")
 ```
 
-## 📊 Monitoring
+### 2. Multi-Turn Conversation
 
-### Health Checks
+```python
+import requests
 
-- **Basic Health**: `GET /health` - Application status
-- **Detailed Health**: `GET /` - Version and configuration info
-- **Provider Health**: Provider status included in stats endpoint
+conversation = [
+    {"role": "system", "content": "You are a customer service agent."},
+    {"role": "user", "content": "I want to return a product."}
+]
 
-### Metrics
+# First turn
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json={"model": "gpt-3.5-turbo", "messages": conversation}
+)
+first_response = response.json()
 
-- **API Performance**: Response times, throughput
-- **Provider Performance**: Provider response times, error rates
-- **OCR Performance**: Processing time, accuracy
-- **Vector Search**: Search latency, result quality
+# Add assistant response
+conversation.append({
+    "role": "assistant",
+    "content": first_response["choices"][0]["message"]["content"]
+})
 
-## 🔄 Error Handling
+# Second turn - system remembers context
+conversation.append({
+    "role": "user",
+    "content": "The order number is ORD-12345."
+})
 
-### Standard Error Responses
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json={"model": "gpt-3.5-turbo", "messages": conversation}
+)
+second_response = response.json()
 
-```json
-{
-  "detail": "Error message description"
-}
+print(f"Enhanced Queries: {second_response['metadata']['enhanced_queries_count']}")
 ```
 
-### Provider-Specific Errors
+## 🔍 Monitoring and Analytics
 
-```json
-{
-  "detail": "Provider error: OpenAI API error: Invalid API key",
-  "provider": "openai",
-  "operation": "get_embeddings"
-}
-```
+### Metadata Insights
 
-### Common Error Codes
+The enhanced chat completion provides rich metadata for monitoring:
 
-| **Status Code** | **Description** | **Common Causes** |
-|----------------|-----------------|------------------|
-| **400** | Bad Request | Invalid input data |
-| **401** | Unauthorized | Missing or invalid API key |
-| **403** | Forbidden | Rate limit exceeded |
-| **404** | Not Found | Resource not found |
-| **422** | Validation Error | Invalid request format |
-| **500** | Internal Server Error | Provider or system error |
+- **Strategy Selection**: Which strategy was used and why
+- **Query Generation**: Number and types of enhanced queries
+- **Context Analysis**: Topics, entities, and conversation length
+- **Plugin Performance**: Processing time and success rates
+- **Source Relevance**: Document retrieval scores and sources
 
-## 📚 Related Documentation
+### Logging
 
-- [Plugin Architecture Guide](../development/PLUGIN_ARCHITECTURE.md) - Provider system documentation
-- [API Models](models.md) - Request/response models
-- [API Examples](examples.md) - Detailed usage examples
-- [Authentication](authentication.md) - Security and authentication
-- [Endpoints](endpoints.md) - Detailed endpoint documentation 
+All enhanced chat completion operations are logged with:
+
+- **Correlation IDs**: For request tracing
+- **Structured Logging**: JSON format for easy parsing
+- **Performance Metrics**: Response times and processing durations
+- **Error Tracking**: Detailed error information
+
+## 📚 Additional Resources
+
+- [API Endpoints Reference](endpoints.md) - Complete endpoint documentation
+- [Request/Response Models](models.md) - Data model specifications
+- [Usage Examples](examples.md) - Comprehensive examples
+- [Enhanced Chat Completion Implementation](../implementation/ENHANCED_CHAT_COMPLETION_IMPLEMENTATION.md) - Technical details
+- [Plugin Architecture Guide](../development/PLUGIN_ARCHITECTURE.md) - Plugin development 

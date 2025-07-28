@@ -104,7 +104,7 @@ curl -X POST "http://localhost:8000/questions/ask" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{
-       "question": "Who created Python?",
+       "question": "What is Python?",
        "top_k": 3
      }'
 ```
@@ -114,7 +114,7 @@ curl -X POST "http://localhost:8000/questions/ask" \
 import requests
 
 data = {
-    "question": "Who created Python?",
+    "question": "What is Python?",
     "top_k": 3
 }
 
@@ -129,19 +129,19 @@ print(response.json())
 ```json
 {
   "success": true,
-  "answer": "Python was created by Guido van Rossum in 1991.",
+  "answer": "Python is a high-level programming language created by Guido van Rossum in 1991...",
   "sources": [
     {
-      "content": "Python is a high-level programming language created by Guido van Rossum in 1991.",
-      "metadata": {"source": "python_info", "chunk_index": 0},
-      "score": 0.9876543
+      "content": "Python is a high-level programming language...",
+      "metadata": {"source": "python_info"},
+      "score": 0.95
     }
   ],
-  "context_used": "Python is a high-level programming language created by Guido van Rossum in 1991."
+  "context_used": "Python is a high-level programming language..."
 }
 ```
 
-### 5. RAG-Enhanced Chat Completions
+### 5. Basic Chat Completions
 
 #### cURL
 ```bash
@@ -153,11 +153,11 @@ curl -X POST "http://localhost:8000/chat/completions" \
        "messages": [
          {
            "role": "system",
-           "content": "You are a helpful technical assistant. Answer questions based on the provided context."
+           "content": "You are a helpful assistant."
          },
          {
            "role": "user",
-           "content": "What are the main features of Python?"
+           "content": "What is the main topic?"
          }
        ],
        "temperature": 0.7,
@@ -174,11 +174,11 @@ data = {
     "messages": [
         {
             "role": "system",
-            "content": "You are a helpful technical assistant. Answer questions based on the provided context."
+            "content": "You are a helpful assistant."
         },
         {
             "role": "user",
-            "content": "What are the main features of Python?"
+            "content": "What is the main topic?"
         }
     ],
     "temperature": 0.7,
@@ -204,7 +204,7 @@ print(response.json())
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Based on the context, Python is a high-level programming language created by Guido van Rossum in 1991. It's known for its simplicity, readability, and extensive standard library."
+        "content": "Based on the available information..."
       },
       "finish_reason": "stop"
     }
@@ -214,358 +214,533 @@ print(response.json())
     "completion_tokens": 45,
     "total_tokens": 195
   },
-  "rag_metadata": {
-    "agent_persona_preserved": true,
-    "context_documents_found": 1,
-    "original_message_count": 2,
-    "enhanced_message_count": 2
+  "sources": [
+    {
+      "content": "Relevant content from documents",
+      "metadata": {"source": "document.pdf"},
+      "score": 0.92
+    }
+  ]
+}
+```
+
+## Enhanced Chat Completion Examples
+
+### 6. Conversation-Aware Chat Completions
+
+#### cURL
+```bash
+curl -X POST "http://localhost:8000/enhanced-chat/completions" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gpt-3.5-turbo",
+       "messages": [
+         {
+           "role": "system",
+           "content": "You are a technical support specialist for software products."
+         },
+         {
+           "role": "user",
+           "content": "I am having trouble installing the software."
+         },
+         {
+           "role": "assistant",
+           "content": "I can help you with the installation. What operating system are you using?"
+         },
+         {
+           "role": "user",
+           "content": "Windows 10. I get a permission error."
+         }
+       ],
+       "temperature": 0.7,
+       "max_tokens": 1000
+     }'
+```
+
+#### Python
+```python
+import requests
+
+data = {
+    "model": "gpt-3.5-turbo",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a technical support specialist for software products."
+        },
+        {
+            "role": "user",
+            "content": "I am having trouble installing the software."
+        },
+        {
+            "role": "assistant",
+            "content": "I can help you with the installation. What operating system are you using?"
+        },
+        {
+            "role": "user",
+            "content": "Windows 10. I get a permission error."
+        }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json=data
+)
+print(response.json())
+```
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-enhanced-1234567890",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-3.5-turbo",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Based on your Windows 10 system and the permission error you're experiencing, here are the steps to resolve this issue:\n\n1. **Run as Administrator**: Right-click the installer and select 'Run as administrator'\n2. **Check User Account Control**: Temporarily disable UAC or adjust settings\n3. **Verify File Permissions**: Ensure you have write permissions to the installation directory\n\nWould you like me to provide more specific troubleshooting steps for your situation?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 250,
+    "completion_tokens": 120,
+    "total_tokens": 370
+  },
+  "sources": [
+    {
+      "content": "Windows 10 installation troubleshooting guide with permission error solutions",
+      "metadata": {"source": "installation_guide.pdf"},
+      "score": 0.92
+    }
+  ],
+  "metadata": {
+    "conversation_aware": true,
+    "strategy_used": "topic_tracking",
+    "enhanced_queries_count": 4,
+    "conversation_context": {
+      "topics": ["software", "installation", "permission", "error", "windows"],
+      "entities": ["Windows 10", "permission error"],
+      "conversation_length": 4
+    },
+    "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
   }
 }
 ```
 
-### 6. Get System Statistics
+### 7. Entity Extraction Strategy Example
 
 #### cURL
 ```bash
-curl -X GET "http://localhost:8000/stats"
+curl -X POST "http://localhost:8000/enhanced-chat/completions" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gpt-3.5-turbo",
+       "messages": [
+         {
+           "role": "system",
+           "content": "You are a data analyst. Extract and analyze entities from the conversation."
+         },
+         {
+           "role": "user",
+           "content": "I need information about John Smith, the CEO of TechCorp, and their relationship with Microsoft."
+         }
+       ],
+       "temperature": 0.7,
+       "max_tokens": 1000
+     }'
 ```
 
 #### Python
 ```python
 import requests
 
-response = requests.get("http://localhost:8000/stats")
-print(response.json())
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "vector_store": {
-    "total_documents": 2,
-    "collection_name": "documents",
-    "vector_size": 1536
-  },
-  "supported_formats": [".pdf", ".txt", ".docx"],
-  "chunk_size": 1000,
-  "chunk_overlap": 200
-}
-```
-
-### 7. Clear Knowledge Base
-
-#### cURL
-```bash
-curl -X DELETE "http://localhost:8000/documents/clear"
-```
-
-#### Python
-```python
-import requests
-
-response = requests.delete("http://localhost:8000/documents/clear")
-print(response.json())
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Knowledge base cleared successfully"
-}
-```
-
-## Advanced Examples
-
-### Multi-Agentic Chat System
-
-#### Customer Service Agent
-```python
-import requests
-
-# Customer service agent conversation
-messages = [
-    {
-        "role": "system",
-        "content": "You are a helpful customer service agent for TechCorp. You are friendly, professional, and knowledgeable about our products."
-    },
-    {
-        "role": "user",
-        "content": "What are the specifications of the X1 laptop?"
-    }
-]
-
 data = {
     "model": "gpt-3.5-turbo",
-    "messages": messages,
-    "temperature": 0.7,
-    "max_tokens": 500
-}
-
-response = requests.post(
-    "http://localhost:8000/chat/completions",
-    json=data
-)
-print(response.json())
-```
-
-#### Technical Support Agent
-```python
-import requests
-
-# Technical support agent conversation
-messages = [
-    {
-        "role": "system",
-        "content": "You are a technical support specialist. You help users with technical issues and provide detailed troubleshooting steps."
-    },
-    {
-        "role": "user",
-        "content": "How do I install Python on Windows?"
-    }
-]
-
-data = {
-    "model": "gpt-3.5-turbo",
-    "messages": messages,
-    "temperature": 0.5,
-    "max_tokens": 800
-}
-
-response = requests.post(
-    "http://localhost:8000/chat/completions",
-    json=data
-)
-print(response.json())
-```
-
-### Batch Document Processing
-
-```python
-import requests
-import os
-
-def upload_documents(directory_path):
-    """Upload all documents in a directory"""
-    supported_extensions = ['.pdf', '.txt', '.docx']
-    
-    for filename in os.listdir(directory_path):
-        if any(filename.endswith(ext) for ext in supported_extensions):
-            file_path = os.path.join(directory_path, filename)
-            
-            with open(file_path, "rb") as file:
-                files = {"file": file}
-                response = requests.post(
-                    "http://localhost:8000/documents/upload",
-                    files=files
-                )
-                
-                if response.status_code == 200:
-                    print(f"✅ {filename}: {response.json()['message']}")
-                else:
-                    print(f"❌ {filename}: {response.json()['detail']}")
-
-# Usage
-upload_documents("./documents")
-```
-
-### Interactive Question Answering
-
-```python
-import requests
-
-def interactive_qa():
-    """Interactive question answering session"""
-    print("🤖 RAG Question Answering System")
-    print("Type 'quit' to exit\n")
-    
-    while True:
-        question = input("❓ Your question: ")
-        
-        if question.lower() == 'quit':
-            break
-        
-        data = {
-            "question": question,
-            "top_k": 3
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a data analyst. Extract and analyze entities from the conversation."
+        },
+        {
+            "role": "user",
+            "content": "I need information about John Smith, the CEO of TechCorp, and their relationship with Microsoft."
         }
-        
-        try:
-            response = requests.post(
-                "http://localhost:8000/questions/ask",
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json=data
+)
+print(response.json())
+```
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-enhanced-1234567891",
+  "object": "chat.completion",
+  "created": 1677652289,
+  "model": "gpt-3.5-turbo",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Based on the available information, here's what I found about the entities you mentioned:\n\n**John Smith**: CEO of TechCorp\n**TechCorp**: Technology company\n**Microsoft**: Technology corporation\n\n**Relationship Analysis**: TechCorp has a strategic partnership with Microsoft..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 200,
+    "completion_tokens": 150,
+    "total_tokens": 350
+  },
+  "sources": [
+    {
+      "content": "TechCorp company profile and leadership information",
+      "metadata": {"source": "company_profiles.pdf"},
+      "score": 0.89
+    }
+  ],
+  "metadata": {
+    "conversation_aware": true,
+    "strategy_used": "entity_extraction",
+    "enhanced_queries_count": 3,
+    "conversation_context": {
+      "topics": ["data_analysis", "entity_extraction"],
+      "entities": ["John Smith", "TechCorp", "Microsoft", "CEO"],
+      "relationships": ["CEO_of", "partnership_with"],
+      "conversation_length": 2
+    },
+    "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+  }
+}
+```
+
+### 8. Get Available Strategies
+
+#### cURL
+```bash
+curl -X GET "http://localhost:8000/enhanced-chat/strategies"
+```
+
+#### Python
+```python
+import requests
+
+response = requests.get("http://localhost:8000/enhanced-chat/strategies")
+print(response.json())
+```
+
+**Response:**
+```json
+{
+  "strategies": [
+    {
+      "name": "topic_tracking",
+      "description": "Tracks conversation topics and generates topic-aware queries",
+      "features": ["topic_extraction", "context_awareness", "conversation_flow"]
+    },
+    {
+      "name": "entity_extraction",
+      "description": "Extracts entities and relationships for enhanced query generation",
+      "features": ["entity_recognition", "relationship_mapping", "semantic_analysis"]
+    }
+  ]
+}
+```
+
+### 9. Get Available Plugins
+
+#### cURL
+```bash
+curl -X GET "http://localhost:8000/enhanced-chat/plugins"
+```
+
+#### Python
+```python
+import requests
+
+response = requests.get("http://localhost:8000/enhanced-chat/plugins")
+print(response.json())
+```
+
+**Response:**
+```json
+{
+  "plugins": [
+    {
+      "name": "conversation_context",
+      "description": "Analyzes conversation context and extracts relevant information",
+      "priority": "HIGH"
+    },
+    {
+      "name": "multi_query_rag",
+      "description": "Generates multiple enhanced queries for improved document retrieval",
+      "priority": "NORMAL"
+    },
+    {
+      "name": "response_enhancement",
+      "description": "Enhances final response with context and metadata",
+      "priority": "LOW"
+    }
+  ]
+}
+```
+
+## Advanced Usage Examples
+
+### 10. Multi-Turn Conversation with Context Preservation
+
+#### Python
+```python
+import requests
+
+# First turn
+conversation = [
+    {
+        "role": "system",
+        "content": "You are a customer service representative for an e-commerce platform."
+    },
+    {
+        "role": "user",
+        "content": "I want to return a product I bought last week."
+    }
+]
+
+data = {
+    "model": "gpt-3.5-turbo",
+    "messages": conversation,
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json=data
+)
+first_response = response.json()
+
+# Add assistant response to conversation
+conversation.append({
+    "role": "assistant",
+    "content": first_response["choices"][0]["message"]["content"]
+})
+
+# Second turn - the system will remember the context
+conversation.append({
+    "role": "user",
+    "content": "The order number is ORD-12345. Can you help me with the return process?"
+})
+
+data["messages"] = conversation
+
+response = requests.post(
+    "http://localhost:8000/enhanced-chat/completions",
+    json=data
+)
+second_response = response.json()
+
+print("First Response:", first_response["choices"][0]["message"]["content"])
+print("Second Response:", second_response["choices"][0]["message"]["content"])
+print("Strategy Used:", second_response["metadata"]["strategy_used"])
+print("Enhanced Queries:", second_response["metadata"]["enhanced_queries_count"])
+```
+
+### 11. Error Handling Examples
+
+#### Missing Messages
+```python
+import requests
+
+data = {
+    "model": "gpt-3.5-turbo",
+    "messages": [],  # Empty messages
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+try:
+    response = requests.post(
+        "http://localhost:8000/enhanced-chat/completions",
+        json=data
+    )
+    print(response.json())
+except requests.exceptions.HTTPError as e:
+    print(f"Error: {e}")
+    print(f"Response: {e.response.json()}")
+```
+
+**Error Response:**
+```json
+{
+  "detail": "Messages cannot be empty"
+}
+```
+
+#### No User Message
+```python
+import requests
+
+data = {
+    "model": "gpt-3.5-turbo",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        }
+        # No user message
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+try:
+    response = requests.post(
+        "http://localhost:8000/enhanced-chat/completions",
+        json=data
+    )
+    print(response.json())
+except requests.exceptions.HTTPError as e:
+    print(f"Error: {e}")
+    print(f"Response: {e.response.json()}")
+```
+
+**Error Response:**
+```json
+{
+  "detail": "No user message found"
+}
+```
+
+## Performance Considerations
+
+### 12. Batch Processing Example
+
+```python
+import requests
+import asyncio
+import aiohttp
+from typing import List, Dict
+
+async def batch_enhanced_chat_completions(
+    requests_data: List[Dict],
+    base_url: str = "http://localhost:8000"
+) -> List[Dict]:
+    """Process multiple enhanced chat completion requests concurrently"""
+    
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for data in requests_data:
+            task = session.post(
+                f"{base_url}/enhanced-chat/completions",
                 json=data
             )
-            
-            if response.status_code == 200:
-                result = response.json()
-                print(f"\n🤖 Answer: {result['answer']}")
-                
-                if result['sources']:
-                    print("\n📚 Sources:")
-                    for i, source in enumerate(result['sources'], 1):
-                        print(f"  {i}. {source['content'][:100]}... (Score: {source['score']:.3f})")
-            else:
-                print(f"❌ Error: {response.json()['detail']}")
-                
-        except Exception as e:
-            print(f"❌ Connection error: {e}")
+            tasks.append(task)
         
-        print("\n" + "="*50 + "\n")
+        responses = await asyncio.gather(*tasks)
+        return [await response.json() for response in responses]
 
-# Usage
-interactive_qa()
-```
+# Example usage
+requests_data = [
+    {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"Question {i}?"}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+    for i in range(5)
+]
 
-### Error Handling Examples
-
-#### Handle File Upload Errors
-```python
-import requests
-
-def safe_upload_document(file_path):
-    """Safely upload a document with error handling"""
-    try:
-        with open(file_path, "rb") as file:
-            files = {"file": file}
-            response = requests.post(
-                "http://localhost:8000/documents/upload",
-                files=files
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 400:
-                error_detail = response.json()['detail']
-                if "File too large" in error_detail:
-                    return {"error": "File size exceeds limit (10MB)"}
-                elif "Unsupported file format" in error_detail:
-                    return {"error": "File format not supported"}
-                else:
-                    return {"error": error_detail}
-            else:
-                return {"error": f"Server error: {response.status_code}"}
-                
-    except FileNotFoundError:
-        return {"error": "File not found"}
-    except Exception as e:
-        return {"error": f"Upload failed: {str(e)}"}
-
-# Usage
-result = safe_upload_document("large_document.pdf")
-if "error" in result:
-    print(f"❌ {result['error']}")
-else:
-    print(f"✅ {result['message']}")
-```
-
-#### Handle API Key Errors
-```python
-import requests
-
-def check_api_status():
-    """Check if API keys are properly configured"""
-    try:
-        response = requests.get("http://localhost:8000/")
-        
-        if response.status_code == 200:
-            print("✅ API is running and healthy")
-            return True
-        else:
-            print(f"❌ API health check failed: {response.status_code}")
-            return False
-            
-    except requests.exceptions.ConnectionError:
-        print("❌ Cannot connect to API server")
-        return False
-    except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-        return False
-
-# Usage
-if check_api_status():
-    print("Ready to use the API!")
-else:
-    print("Please check your API configuration")
+# Run batch processing
+results = asyncio.run(batch_enhanced_chat_completions(requests_data))
+for i, result in enumerate(results):
+    print(f"Request {i}: {result['metadata']['strategy_used']}")
 ```
 
 ## Integration Examples
 
-### FastAPI Client Integration
+### 13. Integration with External Systems
 
 ```python
-from fastapi import FastAPI
-import httpx
+import requests
+import json
+from datetime import datetime
 
-app = FastAPI()
-
-@app.post("/process-document")
-async def process_document(file_path: str):
-    """Process document through RAG API"""
-    async with httpx.AsyncClient() as client:
-        with open(file_path, "rb") as file:
-            files = {"file": file}
-            response = await client.post(
-                "http://localhost:8000/documents/upload",
-                files=files
-            )
-            return response.json()
-
-@app.post("/ask-question")
-async def ask_question(question: str):
-    """Ask question through RAG API"""
-    async with httpx.AsyncClient() as client:
-        data = {"question": question, "top_k": 3}
-        response = await client.post(
-            "http://localhost:8000/questions/ask",
+class EnhancedChatClient:
+    def __init__(self, base_url: str = "http://localhost:8000"):
+        self.base_url = base_url
+        self.session = requests.Session()
+    
+    def chat_completion(
+        self,
+        messages: List[Dict],
+        model: str = "gpt-3.5-turbo",
+        temperature: float = 0.7,
+        max_tokens: int = 1000
+    ) -> Dict:
+        """Send enhanced chat completion request"""
+        
+        data = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+        
+        response = self.session.post(
+            f"{self.base_url}/enhanced-chat/completions",
             json=data
         )
+        response.raise_for_status()
         return response.json()
-```
-
-### JavaScript/Node.js Integration
-
-```javascript
-const axios = require('axios');
-const FormData = require('form-data');
-const fs = require('fs');
-
-// Upload document
-async function uploadDocument(filePath) {
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath));
     
-    try {
-        const response = await axios.post('http://localhost:8000/documents/upload', form, {
-            headers: form.getHeaders()
-        });
-        return response.data;
-    } catch (error) {
-        console.error('Upload error:', error.response?.data || error.message);
-        throw error;
-    }
-}
+    def get_strategies(self) -> Dict:
+        """Get available strategies"""
+        response = self.session.get(f"{self.base_url}/enhanced-chat/strategies")
+        response.raise_for_status()
+        return response.json()
+    
+    def get_plugins(self) -> Dict:
+        """Get available plugins"""
+        response = self.session.get(f"{self.base_url}/enhanced-chat/plugins")
+        response.raise_for_status()
+        return response.json()
 
-// Ask question
-async function askQuestion(question) {
-    try {
-        const response = await axios.post('http://localhost:8000/questions/ask', {
-            question: question,
-            top_k: 3
-        });
-        return response.data;
-    } catch (error) {
-        console.error('Question error:', error.response?.data || error.message);
-        throw error;
-    }
-}
+# Usage example
+client = EnhancedChatClient()
 
-// Usage
-uploadDocument('./document.pdf')
-    .then(result => console.log('Upload result:', result))
-    .catch(error => console.error('Error:', error));
+# Get system information
+strategies = client.get_strategies()
+plugins = client.get_plugins()
 
-askQuestion('What is the main topic?')
-    .then(result => console.log('Answer:', result.answer))
-    .catch(error => console.error('Error:', error));
+print("Available Strategies:", [s["name"] for s in strategies["strategies"]])
+print("Available Plugins:", [p["name"] for p in plugins["plugins"]])
+
+# Send chat completion
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the weather like today?"}
+]
+
+response = client.chat_completion(messages)
+print(f"Response: {response['choices'][0]['message']['content']}")
+print(f"Strategy Used: {response['metadata']['strategy_used']}")
 ``` 
