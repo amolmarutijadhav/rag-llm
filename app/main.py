@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from app.api.routes import health, documents, questions, chat
+from app.api.routes import health, documents, questions, chat, conversation_aware_questions, conversation_aware_chat
 from app.core.config import Config
 from app.core.logging_config import logging_config, get_logger, generate_correlation_id, set_correlation_id, set_request_start_time
 from app.api.middleware.request_logging import enhanced_request_logging
@@ -32,6 +32,8 @@ app.include_router(health.router, tags=["health"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(questions.router, prefix="/questions", tags=["questions"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(conversation_aware_questions.router)
+app.include_router(conversation_aware_chat.router, prefix="/chat", tags=["conversation-aware-chat"])
 
 @app.middleware("http")
 async def add_correlation_id(request: Request, call_next):
