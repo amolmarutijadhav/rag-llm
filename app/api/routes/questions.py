@@ -17,6 +17,7 @@ async def ask_question(request: QuestionRequest):
             'event_type': 'api_question_request_start',
             'question_length': len(request.question),
             'top_k': request.top_k,
+            'top_k_type': type(request.top_k).__name__,
             'correlation_id': correlation_id
         }
     })

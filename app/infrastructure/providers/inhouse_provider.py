@@ -120,7 +120,7 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
 
 
 class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
-    """Sample in-house LLM service provider with enhanced logging."""
+    """Sample in-house LLM service provider with enhanced logging and custom request/response processing."""
     
     def __init__(self, config: Dict[str, Any]):
         """
@@ -133,6 +133,7 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 - default_model: Default model name
                 - default_temperature: Default temperature
                 - default_max_tokens: Default max tokens
+                - static_fields: Static fields for authentication/identification
         """
         # Add provider name to config for logging
         config["provider_name"] = "inhouse_llm"
@@ -143,6 +144,9 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
         self.default_temperature = config.get("default_temperature", 0.1)
         self.default_max_tokens = config.get("default_max_tokens", 1000)
         
+        # Static fields for authentication/identification
+        self.static_fields = config.get("static_fields", {})
+        
         if not self.api_url:
             raise ValueError("In-house LLM API URL is required")
         
@@ -151,7 +155,8 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 'event_type': 'provider_initialized',
                 'provider': 'inhouse_llm',
                 'default_model': self.default_model,
-                'api_url': self.api_url
+                'api_url': self.api_url,
+                'static_fields_count': len(self.static_fields)
             }
         })
     
@@ -196,7 +201,7 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
     
     async def call_llm_api(self, request: Dict[str, Any], return_full_response: bool = False) -> Union[str, Dict[str, Any]]:
         """
-        Make a flexible LLM API call with enhanced logging.
+        Make a flexible LLM API call with enhanced logging and custom preprocessing/postprocessing.
         
         Args:
             request: Complete request dictionary
@@ -215,34 +220,28 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
         })
         
         try:
-            headers = self._get_headers(self.api_key)
-            response = await self._make_request("POST", self.api_url, headers, json_data=request)
+            # Apply request preprocessor
+            processed_request = self._preprocess_request(request)
             
+            # Make the API call
+            headers = self._get_headers(self.api_key)
+            response = await self._make_request("POST", self.api_url, headers, json_data=processed_request)
             data = response.json()
             
-            if return_full_response:
-                logger.info(f"In-house LLM API call successful (full response)", extra={
-                    'extra_fields': {
-                        'event_type': 'inhouse_llm_api_request_success',
-                        'provider': 'inhouse_llm',
-                        'model': request.get('model'),
-                        'response_type': 'full'
-                    }
-                })
-                return data
-            else:
-                # Assuming in-house API returns content in a different field
-                content = data.get("response", data.get("content", ""))
-                logger.info(f"In-house LLM API call successful", extra={
-                    'extra_fields': {
-                        'event_type': 'inhouse_llm_api_request_success',
-                        'provider': 'inhouse_llm',
-                        'model': request.get('model'),
-                        'response_type': 'content',
-                        'content_length': len(content)
-                    }
-                })
-                return content
+            # Apply response postprocessor
+            result = self._postprocess_response(data, return_full_response)
+            
+            logger.info(f"In-house LLM API call successful", extra={
+                'extra_fields': {
+                    'event_type': 'inhouse_llm_api_request_success',
+                    'provider': 'inhouse_llm',
+                    'model': request.get('model'),
+                    'response_type': 'full' if return_full_response else 'content',
+                    'content_length': len(str(result)) if not return_full_response else 0
+                }
+            })
+            
+            return result
                 
         except Exception as e:
             logger.error(f"In-house LLM API call failed", extra={
@@ -254,6 +253,229 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 }
             })
             raise Exception(f"In-house LLM API error: {str(e)}")
+    
+    def _preprocess_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Preprocess request to convert OpenAI format to in-house format.
+        
+        Requirements:
+        1. Convert messages array to single "message" field with full conversation history
+        2. Extract system prompt from system role messages
+        3. Add static fields for authentication
+        
+        Args:
+            request: Original OpenAI format request with conversation history
+            
+        Returns:
+            Processed request in in-house format
+        """
+        try:
+            logger.debug("Applying request preprocessor", extra={
+                'extra_fields': {
+                    'event_type': 'request_preprocessing_start',
+                    'provider': 'inhouse_llm',
+                    'original_request_keys': list(request.keys())
+                }
+            })
+            
+            # Start with static fields
+            processed_request = self.static_fields.copy()
+            
+            # Add model
+            processed_request["model"] = request.get("model", self.default_model)
+            
+            # Process messages to build conversation and extract system prompt
+            messages = request.get("messages", [])
+            system_prompt = ""
+            conversation_parts = []
+            
+            for message in messages:
+                role = message.get("role", "")
+                content = message.get("content", "")
+                
+                if role == "system":
+                    # Extract system prompt
+                    system_prompt = content
+                elif role == "user":
+                    # Add user message to conversation
+                    conversation_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    # Add assistant message to conversation
+                    conversation_parts.append(f"Assistant: {content}")
+            
+            # Build the complete conversation as a single message
+            if conversation_parts:
+                # Join all conversation parts with line breaks
+                full_conversation = "\n\n".join(conversation_parts)
+                
+                # If there's a system prompt, prepend it to the conversation
+                if system_prompt:
+                    full_conversation = f"System: {system_prompt}\n\n{full_conversation}"
+                
+                processed_request["message"] = full_conversation
+            else:
+                # Fallback if no conversation found
+                processed_request["message"] = ""
+            
+            # Set system prompt separately if present (for backward compatibility)
+            if system_prompt:
+                processed_request["system_prompt"] = system_prompt
+            
+            # Add other parameters
+            if "temperature" in request:
+                processed_request["temperature"] = request["temperature"]
+            
+            if "max_tokens" in request:
+                processed_request["max_tokens"] = request["max_tokens"]
+            
+            # Add any additional fields from original request that might be needed
+            for key, value in request.items():
+                if key not in ["messages", "model", "temperature", "max_tokens"]:
+                    processed_request[key] = value
+            
+            logger.debug("Request preprocessing completed", extra={
+                'extra_fields': {
+                    'event_type': 'request_preprocessing_success',
+                    'provider': 'inhouse_llm',
+                    'processed_request_keys': list(processed_request.keys()),
+                    'has_system_prompt': "system_prompt" in processed_request,
+                    'conversation_length': len(processed_request.get("message", "")),
+                    'conversation_turns': len(conversation_parts)
+                }
+            })
+            
+            return processed_request
+            
+        except Exception as e:
+            logger.error("Request preprocessing failed", extra={
+                'extra_fields': {
+                    'event_type': 'request_preprocessing_failure',
+                    'provider': 'inhouse_llm',
+                    'error': str(e)
+                }
+            })
+            # Fall back to original request
+            return request
+    
+    def _postprocess_response(self, data: Dict[str, Any], return_full_response: bool) -> Union[str, Dict[str, Any]]:
+        """
+        Postprocess response to convert in-house format to OpenAI-like format.
+        
+        Requirements:
+        1. Response body contains simple "text" field
+        2. Generate OpenAI-like response structure with id, choices, usage, etc.
+        
+        Args:
+            data: Raw response from in-house API
+            return_full_response: Whether to return full response or just content
+            
+        Returns:
+            Processed response in OpenAI-like format or content string
+        """
+        try:
+            logger.debug("Applying response postprocessor", extra={
+                'extra_fields': {
+                    'event_type': 'response_postprocessing_start',
+                    'provider': 'inhouse_llm',
+                    'response_keys': list(data.keys()),
+                    'return_full_response': return_full_response
+                }
+            })
+            
+            # Extract the text content from response
+            text_content = data.get("text", "")
+            
+            if not return_full_response:
+                # Return just the content string
+                logger.debug("Response postprocessing completed (content only)", extra={
+                    'extra_fields': {
+                        'event_type': 'response_postprocessing_success',
+                        'provider': 'inhouse_llm',
+                        'content_length': len(text_content)
+                    }
+                })
+                return text_content
+            
+            # Create OpenAI-like response structure
+            import uuid
+            import time
+            
+            # Generate a unique ID
+            response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
+            
+            # Get current timestamp
+            current_time = int(time.time())
+            
+            # Create OpenAI-like response
+            openai_response = {
+                "id": response_id,
+                "object": "chat.completion",
+                "created": current_time,
+                "model": self.default_model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": text_content
+                        },
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": self._estimate_tokens(text_content),  # Rough estimation
+                    "completion_tokens": self._estimate_tokens(text_content),
+                    "total_tokens": self._estimate_tokens(text_content) * 2
+                }
+            }
+            
+            # Add any additional fields from original response
+            for key, value in data.items():
+                if key != "text" and key not in openai_response:
+                    openai_response[key] = value
+            
+            logger.debug("Response postprocessing completed (full response)", extra={
+                'extra_fields': {
+                    'event_type': 'response_postprocessing_success',
+                    'provider': 'inhouse_llm',
+                    'response_id': response_id,
+                    'content_length': len(text_content)
+                }
+            })
+            
+            return openai_response
+            
+        except Exception as e:
+            logger.error("Response postprocessing failed", extra={
+                'extra_fields': {
+                    'event_type': 'response_postprocessing_failure',
+                    'provider': 'inhouse_llm',
+                    'error': str(e)
+                }
+            })
+            # Fall back to simple text extraction
+            if return_full_response:
+                return {
+                    "id": "fallback-id",
+                    "choices": [{"message": {"content": data.get("text", "")}}],
+                    "usage": {"total_tokens": 0}
+                }
+            else:
+                return data.get("text", "")
+    
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        Rough estimation of token count for usage statistics.
+        This is a simple approximation - in production, you might want to use a proper tokenizer.
+        
+        Args:
+            text: Text to estimate tokens for
+            
+        Returns:
+            Estimated token count
+        """
+        # Simple estimation: ~4 characters per token
+        return max(1, len(text) // 4)
     
     def get_model_info(self) -> Dict[str, Any]:
         """
@@ -267,7 +489,9 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
             "default_model": self.default_model,
             "api_url": self.api_url,
             "default_temperature": self.default_temperature,
-            "default_max_tokens": self.default_max_tokens
+            "default_max_tokens": self.default_max_tokens,
+            "has_custom_processing": True,
+            "static_fields_count": len(self.static_fields)
         }
 
 

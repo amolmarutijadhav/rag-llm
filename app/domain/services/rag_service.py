@@ -267,6 +267,18 @@ class RAGService:
         if top_k is None:
             top_k = Config.DEFAULT_TOP_K
         
+        # Ensure top_k is valid
+        if top_k <= 0:
+            logger.warning("Invalid top_k value received, using default", extra={
+                'extra_fields': {
+                    'event_type': 'rag_invalid_top_k_fallback',
+                    'received_top_k': top_k,
+                    'fallback_top_k': Config.DEFAULT_TOP_K,
+                    'correlation_id': correlation_id
+                }
+            })
+            top_k = Config.DEFAULT_TOP_K
+        
         logger.info("Starting question processing", extra={
             'extra_fields': {
                 'event_type': 'rag_question_processing_start',

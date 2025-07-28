@@ -10,6 +10,12 @@ class QuestionRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError('Question cannot be empty')
         return v.strip()
+    
+    @validator('top_k')
+    def top_k_must_be_valid(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('top_k must be greater than 0')
+        return v
 
 class TextInputRequest(BaseModel):
     text: str
