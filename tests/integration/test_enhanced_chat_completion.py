@@ -3,6 +3,7 @@ Integration tests for enhanced chat completion endpoint.
 """
 
 import pytest
+from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -11,8 +12,53 @@ client = TestClient(app)
 class TestEnhancedChatCompletionEndpoint:
     """Test enhanced chat completion endpoint"""
     
-    def test_enhanced_chat_completion_basic(self):
+    @patch('app.api.routes.enhanced_chat.enhanced_service')
+    def test_enhanced_chat_completion_basic(self, mock_service):
         """Test basic enhanced chat completion"""
+        # Mock the service response
+        from app.domain.models.responses import ChatCompletionResponse
+        
+        mock_response = ChatCompletionResponse(
+            id="chatcmpl-test-123",
+            object="chat.completion",
+            created=1234567890,
+            model="gpt-3.5-turbo",
+            choices=[
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "This is a test response from the enhanced chat completion service."
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            usage={
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            },
+            sources=[
+                {
+                    "content": "Test source content",
+                    "metadata": {"source": "test.txt"},
+                    "score": 0.95
+                }
+            ],
+            metadata={
+                "conversation_aware": True,
+                "strategy_used": "topic_tracking",
+                "enhanced_queries_count": 3,
+                "conversation_context": {
+                    "topics": ["test", "topic"],
+                    "entities": ["test"],
+                    "conversation_length": 2
+                },
+                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+            }
+        )
+        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
         request_data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -39,8 +85,47 @@ class TestEnhancedChatCompletionEndpoint:
         assert "usage" in data
         assert "sources" in data
     
-    def test_enhanced_chat_completion_with_conversation(self):
+    @patch('app.api.routes.enhanced_chat.enhanced_service')
+    def test_enhanced_chat_completion_with_conversation(self, mock_service):
         """Test enhanced chat completion with conversation context"""
+        # Mock the service response
+        from app.domain.models.responses import ChatCompletionResponse
+        
+        mock_response = ChatCompletionResponse(
+            id="chatcmpl-test-456",
+            object="chat.completion",
+            created=1234567890,
+            model="gpt-3.5-turbo",
+            choices=[
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Machine learning is a subset of AI that enables computers to learn from data."
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            usage={
+                "prompt_tokens": 15,
+                "completion_tokens": 25,
+                "total_tokens": 40
+            },
+            sources=[],
+            metadata={
+                "conversation_aware": True,
+                "strategy_used": "topic_tracking",
+                "enhanced_queries_count": 4,
+                "conversation_context": {
+                    "topics": ["ai", "machine", "learning"],
+                    "entities": ["AI", "Machine Learning"],
+                    "conversation_length": 4
+                },
+                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+            }
+        )
+        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
         request_data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -140,8 +225,47 @@ class TestEnhancedChatCompletionEndpoint:
             assert "features" in plugin
             assert isinstance(plugin["features"], list)
     
-    def test_enhanced_chat_completion_with_metadata(self):
+    @patch('app.api.routes.enhanced_chat.enhanced_service')
+    def test_enhanced_chat_completion_with_metadata(self, mock_service):
         """Test enhanced chat completion includes metadata"""
+        # Mock the service response with metadata
+        from app.domain.models.responses import ChatCompletionResponse
+        
+        mock_response = ChatCompletionResponse(
+            id="chatcmpl-test-789",
+            object="chat.completion",
+            created=1234567890,
+            model="gpt-3.5-turbo",
+            choices=[
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "This is a test response with metadata."
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            usage={
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            },
+            sources=[],
+            metadata={
+                "conversation_aware": True,
+                "strategy_used": "topic_tracking",
+                "enhanced_queries_count": 3,
+                "conversation_context": {
+                    "topics": ["test", "topic"],
+                    "entities": ["test"],
+                    "conversation_length": 2
+                },
+                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+            }
+        )
+        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
         request_data = {
             "model": "gpt-3.5-turbo",
             "messages": [

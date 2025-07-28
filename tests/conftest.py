@@ -150,4 +150,76 @@ def sample_stats_response():
         "supported_formats": [".pdf", ".txt", ".docx"],
         "chunk_size": 1000,
         "chunk_overlap": 200
-    } 
+    }
+
+
+@pytest.fixture
+def mock_llm_provider():
+    """Mock LLM provider for enhanced chat completion testing."""
+    mock_provider = Mock()
+    mock_provider.call_llm = AsyncMock(return_value="This is a test response from the LLM.")
+    mock_provider.call_llm_api = AsyncMock(return_value={
+        "choices": [
+            {
+                "message": {
+                    "content": "This is a test response from the LLM."
+                }
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30
+        }
+    })
+    return mock_provider
+
+
+@pytest.fixture
+def mock_enhanced_chat_completion_service(mock_rag_service, mock_llm_provider):
+    """Mock enhanced chat completion service for testing."""
+    from app.domain.services.enhanced_chat_completion_service import EnhancedChatCompletionService
+    
+    # Create a mock service that returns a proper response
+    mock_service = Mock(spec=EnhancedChatCompletionService)
+    mock_service.process_request = AsyncMock(return_value={
+        "id": "chatcmpl-test-123",
+        "object": "chat.completion",
+        "created": 1234567890,
+        "model": "gpt-3.5-turbo",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "This is a test response from the enhanced chat completion service."
+                },
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30
+        },
+        "sources": [
+            {
+                "content": "Test source content",
+                "metadata": {"source": "test.txt"},
+                "score": 0.95
+            }
+        ],
+        "metadata": {
+            "conversation_aware": True,
+            "strategy_used": "topic_tracking",
+            "enhanced_queries_count": 3,
+            "conversation_context": {
+                "topics": ["test", "topic"],
+                "entities": ["test"],
+                "conversation_length": 2
+            },
+            "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+        }
+    })
+    
+    return mock_service 
