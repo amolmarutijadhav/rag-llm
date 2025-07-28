@@ -309,8 +309,8 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 full_conversation = "\n\n".join(conversation_parts)
                 
                 # If there's a system prompt, prepend it to the conversation
-                if system_prompt:
-                    full_conversation = f"System: {system_prompt}\n\n{full_conversation}"
+                #if system_prompt:
+                #    full_conversation = f"System: {system_prompt}\n\n{full_conversation}"
                 
                 processed_request["message"] = full_conversation
             else:
