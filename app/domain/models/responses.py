@@ -37,4 +37,5 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[Dict[str, Any]]
     usage: Optional[Dict[str, Any]] = None
-    sources: Optional[List[Dict[str, Any]]] = None 
+    sources: Optional[List[Dict[str, Any]]] = None
+    metadata: Optional[Dict[str, Any]] = None 
