@@ -1,7 +1,7 @@
 import os
 import tempfile
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
-from app.domain.models import DocumentResponse, TextInputRequest, SecureClearRequest
+from app.domain.models import DocumentResponse, TextInputRequest, SecureClearRequest, StatsResponse
 from app.domain.services.rag_service import RAGService
 from app.core.config import Config
 from app.api.middleware.security import security_middleware
@@ -412,7 +412,7 @@ async def clear_knowledge_base_secure(
         })
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stats", response_model=DocumentResponse)
+@router.get("/stats", response_model=StatsResponse)
 async def get_stats():
     """Get collection statistics with enhanced logging"""
     correlation_id = get_correlation_id()
@@ -438,12 +438,12 @@ async def get_stats():
             'extra_fields': {
                 'event_type': 'api_document_stats_retrieval_success',
                 'retrieval_success': stats.get('success', False),
-                'total_documents': stats.get('total_documents', 0),
+                'total_documents': stats.get('vector_store', {}).get('total_documents', 0),
                 'correlation_id': correlation_id
             }
         })
         
-        return DocumentResponse(**stats)
+        return StatsResponse(**stats)
         
     except Exception as e:
         logger.error("Statistics retrieval failed", extra={
