@@ -1,0 +1,76 @@
+{
+  "test_suite": "Enhanced Chat Completion E2E",
+  "timestamp": "2025-07-28T17:35:45.063448",
+  "results": [
+    {
+      "test_name": "Enhanced Chat Completion Basic",
+      "status": "PASS",
+      "details": "Response generated successfully. Strategy: topic_tracking",
+      "duration": 18.608843088150024,
+      "timestamp": "2025-07-28T17:34:29.605607"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Conversation Context",
+      "status": "PASS",
+      "details": "Conversation context analyzed successfully. Topics: ['suite', 'system_instruction', 'with', 'permission', 'error', 'software', 'yes,', \"it's\", 'office', 'getting', 'installing', 'version', 'help', 'need']",
+      "duration": 22.7649986743927,
+      "timestamp": "2025-07-28T17:34:52.371635"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Strategy Selection",
+      "status": "PASS",
+      "details": "Strategy selected successfully: topic_tracking",
+      "duration": 16.919185638427734,
+      "timestamp": "2025-07-28T17:35:09.292059"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Multi-Query RAG",
+      "status": "PASS",
+      "details": "Multi-query RAG successful. Queries: 4, Sources: 1",
+      "duration": 15.387001276016235,
+      "timestamp": "2025-07-28T17:35:24.680103"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Error Handling - Empty Messages",
+      "status": "PASS",
+      "details": "Correctly rejected empty messages",
+      "duration": 0.005526542663574219,
+      "timestamp": "2025-07-28T17:35:24.686629"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Error Handling - No User Message",
+      "status": "PASS",
+      "details": "Correctly rejected request without user message",
+      "duration": 0.015618324279785156,
+      "timestamp": "2025-07-28T17:35:24.696721"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Strategies Endpoint",
+      "status": "PASS",
+      "details": "Retrieved 2 strategies successfully",
+      "duration": 0.0125274658203125,
+      "timestamp": "2025-07-28T17:35:24.710260"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Plugins Endpoint",
+      "status": "PASS",
+      "details": "Retrieved 3 plugins successfully",
+      "duration": 0.011062860488891602,
+      "timestamp": "2025-07-28T17:35:24.721322"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Performance",
+      "status": "PASS",
+      "details": "Response time: 17.05s (ACCEPTABLE)",
+      "duration": 17.053981065750122,
+      "timestamp": "2025-07-28T17:35:41.775304"
+    },
+    {
+      "test_name": "Enhanced Chat Completion Backward Compatibility",
+      "status": "PASS",
+      "details": "Original endpoint works correctly without enhanced features",
+      "duration": 3.2861456871032715,
+      "timestamp": "2025-07-28T17:35:45.062451"
+    }
+  ]
+}
