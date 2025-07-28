@@ -98,6 +98,28 @@ class Config:
     PROVIDER_LLM_TYPE = os.getenv("PROVIDER_LLM_TYPE", "openai")
     PROVIDER_VECTOR_STORE_TYPE = os.getenv("PROVIDER_VECTOR_STORE_TYPE", "qdrant")
     
+    # In-house Provider Configuration
+    INHOUSE_EMBEDDING_API_URL = os.getenv("INHOUSE_EMBEDDING_API_URL")
+    INHOUSE_LLM_API_URL = os.getenv("INHOUSE_LLM_API_URL")
+    INHOUSE_VECTOR_STORE_URL = os.getenv("INHOUSE_VECTOR_STORE_URL")
+    INHOUSE_API_KEY = os.getenv("INHOUSE_API_KEY")
+    
+    # Enhanced In-house LLM Configuration
+    INHOUSE_LLM_API_KEY = os.getenv("INHOUSE_LLM_API_KEY", INHOUSE_API_KEY)
+    INHOUSE_LLM_MODEL = os.getenv("INHOUSE_LLM_MODEL", "inhouse-llm-model")
+    INHOUSE_LLM_TEMPERATURE = float(os.getenv("INHOUSE_LLM_TEMPERATURE", "0.1"))
+    INHOUSE_LLM_MAX_TOKENS = int(os.getenv("INHOUSE_LLM_MAX_TOKENS", "1000"))
+    INHOUSE_LLM_AUTH_SCHEME = os.getenv("INHOUSE_LLM_AUTH_SCHEME", "bearer")
+    
+    # In-house Embedding Configuration
+    INHOUSE_EMBEDDING_API_KEY = os.getenv("INHOUSE_EMBEDDING_API_KEY", INHOUSE_API_KEY)
+    INHOUSE_EMBEDDING_MODEL = os.getenv("INHOUSE_EMBEDDING_MODEL", "inhouse-embedding-model")
+    INHOUSE_EMBEDDING_AUTH_SCHEME = os.getenv("INHOUSE_EMBEDDING_AUTH_SCHEME", "bearer")
+    
+    # In-house Vector Store Configuration
+    INHOUSE_VECTOR_STORE_API_KEY = os.getenv("INHOUSE_VECTOR_STORE_API_KEY", INHOUSE_API_KEY)
+    INHOUSE_VECTOR_STORE_AUTH_SCHEME = os.getenv("INHOUSE_VECTOR_STORE_AUTH_SCHEME", "api_key")
+    
     @classmethod
     def get_ssl_config(cls):
         """Get SSL configuration using CertificateManager"""
@@ -119,15 +141,26 @@ class Config:
         Returns:
             Configuration dictionary for embedding provider
         """
-        return {
-            "type": cls.PROVIDER_EMBEDDING_TYPE,
-            "api_url": cls.EMBEDDING_API_URL,
-            "api_key": cls.OPENAI_API_KEY,
-            "model": cls.EMBEDDING_MODEL,
-            "auth_scheme": "bearer",
-            "timeout": cls.REQUEST_TIMEOUT,
-            "max_retries": cls.MAX_RETRIES
-        }
+        if cls.PROVIDER_EMBEDDING_TYPE == "inhouse":
+            return {
+                "type": cls.PROVIDER_EMBEDDING_TYPE,
+                "api_url": cls.INHOUSE_EMBEDDING_API_URL,
+                "api_key": cls.INHOUSE_EMBEDDING_API_KEY,
+                "model": cls.INHOUSE_EMBEDDING_MODEL,
+                "auth_scheme": cls.INHOUSE_EMBEDDING_AUTH_SCHEME,
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES
+            }
+        else:
+            return {
+                "type": cls.PROVIDER_EMBEDDING_TYPE,
+                "api_url": cls.EMBEDDING_API_URL,
+                "api_key": cls.OPENAI_API_KEY,
+                "model": cls.EMBEDDING_MODEL,
+                "auth_scheme": "bearer",
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES
+            }
     
     @classmethod
     def get_llm_provider_config(cls) -> Dict[str, Any]:
@@ -137,17 +170,62 @@ class Config:
         Returns:
             Configuration dictionary for LLM provider
         """
-        return {
-            "type": cls.PROVIDER_LLM_TYPE,
-            "api_url": cls.LLM_API_URL,
-            "api_key": cls.OPENAI_API_KEY,
-            "default_model": cls.LLM_MODEL,
-            "default_temperature": cls.LLM_TEMPERATURE,
-            "default_max_tokens": cls.LLM_MAX_TOKENS,
-            "auth_scheme": "bearer",
-            "timeout": cls.REQUEST_TIMEOUT,
-            "max_retries": cls.MAX_RETRIES
-        }
+        if cls.PROVIDER_LLM_TYPE == "inhouse":
+            # Get static fields for in-house LLM
+            static_fields = cls._get_inhouse_llm_static_fields()
+            
+            return {
+                "type": cls.PROVIDER_LLM_TYPE,
+                "api_url": cls.INHOUSE_LLM_API_URL,
+                "api_key": cls.INHOUSE_LLM_API_KEY,
+                "default_model": cls.INHOUSE_LLM_MODEL,
+                "default_temperature": cls.INHOUSE_LLM_TEMPERATURE,
+                "default_max_tokens": cls.INHOUSE_LLM_MAX_TOKENS,
+                "auth_scheme": cls.INHOUSE_LLM_AUTH_SCHEME,
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES,
+                "static_fields": static_fields
+            }
+        else:
+            return {
+                "type": cls.PROVIDER_LLM_TYPE,
+                "api_url": cls.LLM_API_URL,
+                "api_key": cls.OPENAI_API_KEY,
+                "default_model": cls.LLM_MODEL,
+                "default_temperature": cls.LLM_TEMPERATURE,
+                "default_max_tokens": cls.LLM_MAX_TOKENS,
+                "auth_scheme": "bearer",
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES
+            }
+    
+    @classmethod
+    def _get_inhouse_llm_static_fields(cls) -> Dict[str, Any]:
+        """
+        Get static fields configuration for in-house LLM provider.
+        
+        Returns:
+            Dictionary of static fields for authentication/identification
+        """
+        static_fields = {}
+        
+        # Add static fields if they are configured
+        if os.getenv("INHOUSE_LLM_CLIENT_ID"):
+            static_fields["client_id"] = os.getenv("INHOUSE_LLM_CLIENT_ID")
+        if os.getenv("INHOUSE_LLM_VERSION"):
+            static_fields["version"] = os.getenv("INHOUSE_LLM_VERSION")
+        if os.getenv("INHOUSE_LLM_ENVIRONMENT"):
+            static_fields["environment"] = os.getenv("INHOUSE_LLM_ENVIRONMENT")
+        if os.getenv("INHOUSE_LLM_REQUEST_SOURCE"):
+            static_fields["request_source"] = os.getenv("INHOUSE_LLM_REQUEST_SOURCE")
+        if os.getenv("INHOUSE_LLM_AUTH_TOKEN"):
+            static_fields["auth_token"] = os.getenv("INHOUSE_LLM_AUTH_TOKEN")
+        if os.getenv("INHOUSE_LLM_ORGANIZATION_ID"):
+            static_fields["organization_id"] = os.getenv("INHOUSE_LLM_ORGANIZATION_ID")
+        if os.getenv("INHOUSE_LLM_PROJECT_ID"):
+            static_fields["project_id"] = os.getenv("INHOUSE_LLM_PROJECT_ID")
+        
+        return static_fields
     
     @classmethod
     def get_vector_store_provider_config(cls) -> Dict[str, Any]:
@@ -157,17 +235,30 @@ class Config:
         Returns:
             Configuration dictionary for vector store provider
         """
-        # Extract base URL from collection URL for Qdrant
-        base_url = cls.VECTOR_COLLECTION_URL.replace(f"/collections/{cls.QDRANT_COLLECTION_NAME}", "")
-        
-        return {
-            "type": cls.PROVIDER_VECTOR_STORE_TYPE,
-            "base_url": base_url,
-            "api_key": cls.QDRANT_API_KEY,
-            "auth_scheme": "api_key",
-            "timeout": cls.REQUEST_TIMEOUT,
-            "max_retries": cls.MAX_RETRIES,
-            "collection_name": cls.QDRANT_COLLECTION_NAME,
-            "vector_size": cls.VECTOR_SIZE,
-            "distance_metric": cls.VECTOR_DISTANCE_METRIC
-        } 
+        if cls.PROVIDER_VECTOR_STORE_TYPE == "inhouse":
+            return {
+                "type": cls.PROVIDER_VECTOR_STORE_TYPE,
+                "base_url": cls.INHOUSE_VECTOR_STORE_URL,
+                "api_key": cls.INHOUSE_VECTOR_STORE_API_KEY,
+                "auth_scheme": cls.INHOUSE_VECTOR_STORE_AUTH_SCHEME,
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES,
+                "collection_name": cls.QDRANT_COLLECTION_NAME,
+                "vector_size": cls.VECTOR_SIZE,
+                "distance_metric": cls.VECTOR_DISTANCE_METRIC
+            }
+        else:
+            # Extract base URL from collection URL for Qdrant
+            base_url = cls.VECTOR_COLLECTION_URL.replace(f"/collections/{cls.QDRANT_COLLECTION_NAME}", "")
+            
+            return {
+                "type": cls.PROVIDER_VECTOR_STORE_TYPE,
+                "base_url": base_url,
+                "api_key": cls.QDRANT_API_KEY,
+                "auth_scheme": "api_key",
+                "timeout": cls.REQUEST_TIMEOUT,
+                "max_retries": cls.MAX_RETRIES,
+                "collection_name": cls.QDRANT_COLLECTION_NAME,
+                "vector_size": cls.VECTOR_SIZE,
+                "distance_metric": cls.VECTOR_DISTANCE_METRIC
+            } 

@@ -182,6 +182,85 @@ curl -X POST "http://localhost:8000/chat/completions" \
 curl -X GET "http://localhost:8000/stats"
 ```
 
+## 🔌 Provider Configuration
+
+### In-house LLM Provider
+
+The enhanced InhouseLLMProvider supports custom request/response processing with the following features:
+
+#### Configuration Options
+
+1. **Basic Configuration** (in `.env`):
+```bash
+# Provider Type
+PROVIDER_LLM_TYPE=inhouse
+
+# API Configuration
+INHOUSE_LLM_API_URL=https://your-inhouse-llm-api.com/v1/chat/completions
+INHOUSE_LLM_API_KEY=your_inhouse_llm_api_key_here
+INHOUSE_LLM_MODEL=your-inhouse-model-name
+INHOUSE_LLM_TEMPERATURE=0.1
+INHOUSE_LLM_MAX_TOKENS=1000
+INHOUSE_LLM_AUTH_SCHEME=bearer
+```
+
+2. **Static Fields for Authentication** (optional):
+```bash
+# Static fields automatically added to every request
+INHOUSE_LLM_CLIENT_ID=rag-llm-system
+INHOUSE_LLM_VERSION=2.0
+INHOUSE_LLM_ENVIRONMENT=production
+INHOUSE_LLM_REQUEST_SOURCE=api
+INHOUSE_LLM_AUTH_TOKEN=your-static-auth-token
+INHOUSE_LLM_ORGANIZATION_ID=your-org-id
+INHOUSE_LLM_PROJECT_ID=your-project-id
+```
+
+#### Features
+
+- **🔄 Request Preprocessing**: Converts OpenAI format to in-house format
+  - Messages array → Single "message" field with full conversation history
+  - System prompts extracted to "system_prompt" field
+  - Static authentication fields automatically added
+- **🔄 Response Postprocessing**: Generates OpenAI-like responses
+  - Extracts content from "text" field
+  - Creates proper response structure with ID, choices, usage, etc.
+- **📝 Conversation Handling**: Full conversation history support
+- **🔐 Authentication**: Flexible authentication schemes
+- **📊 Logging**: Comprehensive request/response logging
+
+#### Usage Example
+
+```python
+from app.infrastructure.providers.inhouse_provider import InhouseLLMProvider
+
+# Configuration with static fields
+config = {
+    "api_url": "https://inhouse-llm.company.com/api/v1/chat",
+    "api_key": "your-api-key",
+    "default_model": "company-llm-v2",
+    "static_fields": {
+        "client_id": "rag-llm-system",
+        "version": "2.0",
+        "environment": "production"
+    }
+}
+
+provider = InhouseLLMProvider(config)
+
+# Conversation with full history
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the capital of France?"},
+    {"role": "assistant", "content": "The capital of France is Paris."},
+    {"role": "user", "content": "What about Germany?"}
+]
+
+response = await provider.call_llm(messages)
+```
+
+For more examples, see [examples/inhouse_llm_usage.py](examples/inhouse_llm_usage.py).
+
 ## 🏗️ Project Structure
 
 ```
