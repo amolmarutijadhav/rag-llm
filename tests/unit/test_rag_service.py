@@ -196,9 +196,13 @@ class TestRAGService:
         result = rag_service.get_stats()
         
         assert result["success"] == True
-        assert "total_documents" in result
-        assert "collection_name" in result
-        assert "vector_size" in result
+        assert "vector_store" in result
+        assert "total_documents" in result["vector_store"]
+        assert "collection_name" in result["vector_store"]
+        assert "vector_size" in result["vector_store"]
+        assert "supported_formats" in result
+        assert "chunk_size" in result
+        assert "chunk_overlap" in result
 
     def test_get_stats_vector_store_error(self, rag_service, mock_vector_store_provider):
         """Test stats retrieval when vector store fails."""
