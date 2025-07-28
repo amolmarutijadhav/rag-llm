@@ -363,11 +363,16 @@ def test_ocr_error_handling():
         
         print(f"✅ Corrupted File Upload - Status: {response.status_code}")
         
-        if response.status_code in [400, 422, 500]:
-            print("   ✅ Correctly handled corrupted file")
-            return True
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success') == False and 'Error processing document' in result.get('message', ''):
+                print("   ✅ Correctly handled corrupted file")
+                return True
+            else:
+                print(f"   ⚠️ Unexpected response: {response.text}")
+                return False
         else:
-            print(f"   ⚠️ Unexpected response: {response.text}")
+            print(f"   ⚠️ Unexpected status code: {response.status_code}")
             return False
             
     except Exception as e:

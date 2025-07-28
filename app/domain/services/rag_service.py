@@ -448,9 +448,14 @@ class RAGService:
             
             return {
                 "success": True,
-                "total_documents": stats.get('total_documents', 0),
-                "collection_name": stats.get('collection_name', ''),
-                "vector_size": stats.get('vector_size', 0)
+                "vector_store": {
+                    "total_documents": stats.get('total_documents', 0),
+                    "collection_name": stats.get('collection_name', ''),
+                    "vector_size": stats.get('vector_size', 0)
+                },
+                "supported_formats": ["pdf", "docx", "txt", "png", "jpg", "jpeg"],
+                "chunk_size": Config.CHUNK_SIZE,
+                "chunk_overlap": Config.CHUNK_OVERLAP
             }
             
         except Exception as e:

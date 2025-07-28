@@ -31,6 +31,10 @@ class HealthResponse(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     """Response model for chat completions"""
+    id: str
+    object: str
+    created: int
     model: str
     choices: List[Dict[str, Any]]
-    usage: Optional[Dict[str, Any]] = None 
+    usage: Optional[Dict[str, Any]] = None
+    sources: Optional[List[Dict[str, Any]]] = None 

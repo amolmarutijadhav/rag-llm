@@ -47,12 +47,17 @@ class StructuredJSONFormatter(logging.Formatter):
     
     def format(self, record):
         # Base log entry
+        try:
+            corr_id = correlation_id.get()
+        except LookupError:
+            corr_id = ""
+            
         log_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
-            "correlation_id": correlation_id.get(),
+            "correlation_id": corr_id,
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
@@ -61,8 +66,12 @@ class StructuredJSONFormatter(logging.Formatter):
         }
         
         # Add request duration if available
-        if request_start_time.get() > 0:
-            log_entry["request_duration_ms"] = (time.time() - request_start_time.get()) * 1000
+        try:
+            start_time = request_start_time.get()
+            if start_time > 0:
+                log_entry["request_duration_ms"] = (time.time() - start_time) * 1000
+        except LookupError:
+            pass  # No request start time available
         
         # Add extra fields
         if hasattr(record, 'extra_fields'):
@@ -108,7 +117,7 @@ class ProductionLoggingConfig:
                 console_handler.setFormatter(StructuredJSONFormatter())
             else:
                 console_handler.setFormatter(logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] %(message)s'
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
                 ))
             root_logger.addHandler(console_handler)
         

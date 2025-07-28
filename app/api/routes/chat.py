@@ -143,8 +143,8 @@ async def chat_completions(request: ChatCompletionRequest):
                 'event_type': 'api_chat_completion_response_generated',
                 'model': request.model,
                 'response_id': response.id,
-                'completion_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens,
+                'completion_tokens': response.usage['completion_tokens'],
+                'total_tokens': response.usage['total_tokens'],
                 'sources_count': len(sources),
                 'correlation_id': correlation_id
             }
