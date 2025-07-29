@@ -6,6 +6,7 @@ from app.api.routes import health, documents, questions, chat, enhanced_chat, co
 from app.core.config import Config
 from app.core.logging_config import logging_config, get_logger, generate_correlation_id, set_correlation_id, set_request_start_time
 from app.api.middleware.request_logging import enhanced_request_logging
+from app.api.middleware.error_logging import ErrorLoggingMiddleware
 
 # Setup logging first
 logging_config.setup_logging()
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_methods=Config.CORS_ALLOW_METHODS,
     allow_headers=Config.CORS_ALLOW_HEADERS,
 )
+
+# Add error logging middleware
+app.add_middleware(ErrorLoggingMiddleware)
 
 # Include routers
 app.include_router(health.router, tags=["health"])

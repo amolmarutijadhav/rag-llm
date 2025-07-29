@@ -5,6 +5,7 @@ Base provider class with common functionality for all external service providers
 import httpx
 from typing import Dict, Any
 from app.core.config import Config
+from app.utils.error_utils import handle_provider_errors
 
 
 class BaseProvider:
@@ -45,10 +46,11 @@ class BaseProvider:
         
         return headers
     
+    @handle_provider_errors
     async def _make_request(self, method: str, url: str, headers: Dict[str, str], 
                            json_data: Dict[str, Any] = None, params: Dict[str, Any] = None) -> httpx.Response:
         """
-        Make an HTTP request with common error handling.
+        Make an HTTP request with enhanced error handling and logging.
         
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
@@ -63,28 +65,22 @@ class BaseProvider:
         Raises:
             Exception: If request fails
         """
-        try:
-            async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    json=json_data,
-                    params=params
-                )
-                response.raise_for_status()
-                return response
-        except httpx.HTTPStatusError as e:
-            raise Exception(f"HTTP error {e.response.status_code}: {e.response.text}")
-        except httpx.RequestError as e:
-            raise Exception(f"Request error: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Unexpected error: {str(e)}")
+        async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
+            response = await client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                json=json_data,
+                params=params
+            )
+            response.raise_for_status()
+            return response
     
+    @handle_provider_errors
     def _make_sync_request(self, method: str, url: str, headers: Dict[str, str],
                           json_data: Dict[str, Any] = None, params: Dict[str, Any] = None) -> httpx.Response:
         """
-        Make a synchronous HTTP request with common error handling.
+        Make a synchronous HTTP request with enhanced error handling and logging.
         
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
@@ -99,20 +95,13 @@ class BaseProvider:
         Raises:
             Exception: If request fails
         """
-        try:
-            with httpx.Client(**self._get_client_kwargs()) as client:
-                response = client.request(
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    json=json_data,
-                    params=params
-                )
-                response.raise_for_status()
-                return response
-        except httpx.HTTPStatusError as e:
-            raise Exception(f"HTTP error {e.response.status_code}: {e.response.text}")
-        except httpx.RequestError as e:
-            raise Exception(f"Request error: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Unexpected error: {str(e)}") 
+        with httpx.Client(**self._get_client_kwargs()) as client:
+            response = client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                json=json_data,
+                params=params
+            )
+            response.raise_for_status()
+            return response 
