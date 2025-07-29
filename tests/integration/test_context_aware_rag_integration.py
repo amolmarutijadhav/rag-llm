@@ -18,24 +18,11 @@ def client(clean_app):
 class TestContextAwareDocumentUpload:
     """Test context-aware document upload endpoints"""
     
-    @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.add_document_with_context')
-    def test_upload_document_with_context_success(self, mock_add_document, client):
-        """Test successful document upload with context"""
-        # Mock the service response
-        mock_add_document.return_value = {
-            "success": True,
-            "message": "Document uploaded successfully with context",
-            "documents_added": 1,
-            "context": {
-                "context_type": ["technical"],
-                "content_domain": ["api_documentation"],
-                "document_category": ["user_guide"]
-            }
-        }
-        
+    def test_upload_document_with_context_success(self, client):
+        """Test successful document upload with context - REAL INTEGRATION TEST"""
         # Create a temporary test file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write("This is a test API documentation file.")
+            f.write("This is a test API documentation file with authentication information.")
             temp_file_path = f.name
         
         try:
@@ -58,39 +45,53 @@ class TestContextAwareDocumentUpload:
             
             assert data["success"] is True
             assert "documents_added" in data
+            assert data["documents_added"] > 0
             assert "context" in data
-            
-            # Verify the mock was called
-            mock_add_document.assert_called_once()
+            assert data["context"]["context_type"] == ["technical"]
+            assert data["context"]["content_domain"] == ["api_documentation"]
             
         finally:
             # Clean up temporary file
             os.unlink(temp_file_path)
-    
-    @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.add_text_with_context')
-    def test_upload_text_with_context_success(self, mock_add_text, client):
-        """Test successful text upload with context"""
-        # Mock the service response
-        mock_add_text.return_value = {
-            "success": True,
-            "message": "Text uploaded successfully with context",
-            "documents_added": 1,
-            "context": {
-                "context_type": ["creative"],
-                "content_domain": ["marketing"],
-                "document_category": ["blog_post"]
-            }
-        }
+
+    def test_upload_document_with_context_invalid_file(self, client):
+        """Test document upload with invalid file format"""
+        # Create a temporary file with invalid extension
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.invalid', delete=False) as f:
+            f.write("This is an invalid file format.")
+            temp_file_path = f.name
         
+        try:
+            with open(temp_file_path, 'rb') as file:
+                response = client.post(
+                    "/context-aware-documents/upload",
+                    files={"file": ("test_doc.invalid", file, "text/plain")},
+                    data={
+                        "context_type": "technical",
+                        "content_domain": "api_documentation",
+                        "document_category": "user_guide"
+                    }
+                )
+            
+            # Should return 500 for unsupported file format
+            assert response.status_code == 500
+            data = response.json()
+            assert "Error adding document" in data["detail"]
+            
+        finally:
+            os.unlink(temp_file_path)
+    
+    def test_upload_text_with_context_success(self, client):
+        """Test successful text upload with context - REAL INTEGRATION TEST"""
         # Use form data (not JSON)
         response = client.post(
             "/context-aware-documents/upload-text",
             data={
-                "text": "This is a marketing blog post about our new product features.",
+                "text": "This is a marketing blog post about our new product features and how they improve user experience.",
                 "context_type": "creative",
                 "content_domain": "marketing",
                 "document_category": "user_guide",  # Use valid category
-                "relevance_tags": "product,features",
+                "relevance_tags": "product,features,user_experience",
                 "description": "Marketing content for new product launch",
                 "source_name": "product_launch_blog"
             }
@@ -103,8 +104,7 @@ class TestContextAwareDocumentUpload:
         assert "documents_added" in data
         assert data["context"]["content_domain"] == ["marketing"]
         
-        # Verify the mock was called
-        mock_add_text.assert_called_once()
+        # Real integration test - no mock to verify
     
     def test_upload_document_missing_context(self, client):
         """Test document upload without required context"""

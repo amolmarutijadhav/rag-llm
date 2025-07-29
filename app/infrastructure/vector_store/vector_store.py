@@ -160,6 +160,14 @@ class VectorStore:
                     'documents_count': len(documents),
                     'error': str(e),
                     'error_type': type(e).__name__,
+                    'error_details': {
+                        'embedding_provider': type(self.embedding_provider).__name__,
+                        'vector_store_provider': type(self.vector_store_provider).__name__,
+                        'collection_name': self.collection_name,
+                        'documents_sample': [doc.get('id', 'no_id') for doc in documents[:3]],
+                        'embedding_provider_config': getattr(self.embedding_provider, 'api_url', 'unknown'),
+                        'vector_store_provider_config': getattr(self.vector_store_provider, 'api_url', 'unknown')
+                    },
                     'correlation_id': correlation_id
                 }
             })

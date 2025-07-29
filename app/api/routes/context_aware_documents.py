@@ -19,8 +19,20 @@ import os
 logger = get_logger(__name__)
 router = APIRouter(prefix="/context-aware-documents", tags=["Context-Aware Documents"])
 
-# Initialize context-aware RAG service
-context_aware_rag_service = ContextAwareRAGService()
+# Initialize context-aware RAG service with proper providers
+from app.infrastructure.providers import get_embedding_provider, get_vector_store_provider, get_llm_provider
+
+# Get providers
+embedding_provider = get_embedding_provider()
+vector_store_provider = get_vector_store_provider()
+llm_provider = get_llm_provider()
+
+# Initialize context-aware RAG service with providers
+context_aware_rag_service = ContextAwareRAGService(
+    embedding_provider=embedding_provider,
+    llm_provider=llm_provider,
+    vector_store_provider=vector_store_provider
+)
 
 class DocumentUploadResponse(BaseModel):
     success: bool
@@ -122,6 +134,7 @@ async def upload_document_with_context(
                         'correlation_id': correlation_id
                     }
                 })
+                return DocumentUploadResponse(**result)
             else:
                 logger.error("Document upload with context failed", extra={
                     'extra_fields': {
@@ -131,8 +144,11 @@ async def upload_document_with_context(
                         'correlation_id': correlation_id
                     }
                 })
-            
-            return DocumentUploadResponse(**result)
+                # Return HTTP 500 for failures instead of 200
+                raise HTTPException(
+                    status_code=500, 
+                    detail=result.get('message', 'Document upload failed')
+                )
             
         finally:
             # Clean up temporary file
@@ -236,6 +252,7 @@ async def upload_text_with_context(
                     'correlation_id': correlation_id
                 }
             })
+            return DocumentUploadResponse(**result)
         else:
             logger.error("Text upload with context failed", extra={
                 'extra_fields': {
@@ -245,8 +262,11 @@ async def upload_text_with_context(
                     'correlation_id': correlation_id
                 }
             })
-        
-        return DocumentUploadResponse(**result)
+            # Return HTTP 500 for failures instead of 200
+            raise HTTPException(
+                status_code=500, 
+                detail=result.get('message', 'Text upload failed')
+            )
         
     except HTTPException:
         raise
@@ -296,4 +316,57 @@ async def get_context_aware_stats():
 @router.delete("/clear")
 async def clear_context_aware_knowledge_base():
     """Clear all context-aware documents"""
-    return context_aware_rag_service.clear_knowledge_base() 
+    return context_aware_rag_service.clear_knowledge_base()
+
+@router.get("/health")
+async def check_provider_health():
+    """Check if all providers are working correctly"""
+    correlation_id = get_correlation_id()
+    
+    try:
+        logger.info("Checking provider health", extra={
+            'extra_fields': {
+                'event_type': 'provider_health_check_start',
+                'correlation_id': correlation_id
+            }
+        })
+        
+        # Test embedding provider
+        test_embeddings = await context_aware_rag_service.rag_service.vector_store.embedding_provider.get_embeddings(["test"])
+        
+        # Test vector store provider
+        test_stats = context_aware_rag_service.rag_service.vector_store.get_collection_stats()
+        
+        logger.info("Provider health check completed successfully", extra={
+            'extra_fields': {
+                'event_type': 'provider_health_check_success',
+                'embedding_provider': type(context_aware_rag_service.rag_service.vector_store.embedding_provider).__name__,
+                'vector_store_provider': type(context_aware_rag_service.rag_service.vector_store.vector_store_provider).__name__,
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return {
+            "status": "healthy",
+            "embedding_provider": "working",
+            "vector_store_provider": "working",
+            "collection_stats": test_stats,
+            "embedding_dimensions": len(test_embeddings[0]) if test_embeddings else 0
+        }
+    except Exception as e:
+        logger.error("Provider health check failed", extra={
+            'extra_fields': {
+                'event_type': 'provider_health_check_failure',
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "embedding_provider": type(context_aware_rag_service.rag_service.vector_store.embedding_provider).__name__,
+            "vector_store_provider": type(context_aware_rag_service.rag_service.vector_store.vector_store_provider).__name__
+        } 

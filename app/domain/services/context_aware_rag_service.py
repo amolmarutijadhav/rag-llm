@@ -420,7 +420,7 @@ class ContextAwareRAGService:
             for i, doc in enumerate(documents):
                 enhanced_doc = {
                     "id": f"{request.file_path}_{i}",
-                    "content": doc.page_content,
+                    "content": doc["content"],  # Use dictionary access instead of attribute access
                     "metadata": {
                         "source": request.file_path,
                         "chunk_index": i,
@@ -493,6 +493,13 @@ class ContextAwareRAGService:
                     'file_path': request.file_path,
                     'error': str(e),
                     'error_type': type(e).__name__,
+                    'error_details': {
+                        'documents_count': len(enhanced_documents) if 'enhanced_documents' in locals() else 'unknown',
+                        'rag_service_type': type(self.rag_service).__name__,
+                        'vector_store_type': type(self.rag_service.vector_store).__name__ if hasattr(self.rag_service, 'vector_store') else 'unknown',
+                        'embedding_provider_type': type(self.rag_service.vector_store.embedding_provider).__name__ if hasattr(self.rag_service, 'vector_store') and hasattr(self.rag_service.vector_store, 'embedding_provider') else 'unknown',
+                        'vector_store_provider_type': type(self.rag_service.vector_store.vector_store_provider).__name__ if hasattr(self.rag_service, 'vector_store') and hasattr(self.rag_service.vector_store, 'vector_store_provider') else 'unknown'
+                    },
                     'correlation_id': correlation_id
                 }
             })
@@ -584,6 +591,13 @@ class ContextAwareRAGService:
                     'text_length': len(request.text),
                     'error': str(e),
                     'error_type': type(e).__name__,
+                    'error_details': {
+                        'documents_count': len(enhanced_documents) if 'enhanced_documents' in locals() else 'unknown',
+                        'rag_service_type': type(self.rag_service).__name__,
+                        'vector_store_type': type(self.rag_service.vector_store).__name__ if hasattr(self.rag_service, 'vector_store') else 'unknown',
+                        'embedding_provider_type': type(self.rag_service.vector_store.embedding_provider).__name__ if hasattr(self.rag_service, 'vector_store') and hasattr(self.rag_service.vector_store, 'embedding_provider') else 'unknown',
+                        'vector_store_provider_type': type(self.rag_service.vector_store.vector_store_provider).__name__ if hasattr(self.rag_service, 'vector_store') and hasattr(self.rag_service.vector_store, 'vector_store_provider') else 'unknown'
+                    },
                     'correlation_id': correlation_id
                 }
             })

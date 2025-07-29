@@ -392,9 +392,9 @@ class TestContextAwareRAGService:
     
     @pytest.mark.asyncio
     async def test_add_document_with_context_success(self, context_aware_service, mock_rag_service):
-        # Mock document loading
+        # Mock document loading with correct dictionary format
         mock_rag_service.document_loader.load_document.return_value = (
-            [Mock(page_content="test content")], None
+            [{"id": "test_1", "content": "test content", "metadata": {"source": "/test/file.pdf"}}], None
         )
         mock_rag_service.vector_store.add_documents = AsyncMock(return_value=True)
         context = DocumentContext(
@@ -436,6 +436,52 @@ class TestContextAwareRAGService:
         assert result["documents_added"] == 1
         assert result["context"]["context_type"] == ["creative"]
         mock_rag_service.vector_store.add_documents.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_add_document_with_context_error(self, context_aware_service, mock_rag_service):
+        """Test error handling in document upload with context"""
+        # Mock document loading to raise an exception
+        mock_rag_service.document_loader.load_document.side_effect = Exception("Document loading failed")
+        
+        context = DocumentContext(
+            context_type=["technical"],
+            content_domain=["api_documentation"],
+            document_category=["user_guide"]
+        )
+        request = DocumentUploadRequest(
+            file_path="/test/file.pdf",
+            context=context
+        )
+        
+        result = await context_aware_service.add_document_with_context(request)
+        
+        assert result["success"] is False
+        assert "Error adding document" in result["message"]
+        assert "Document loading failed" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_add_document_with_context_vector_store_failure(self, context_aware_service, mock_rag_service):
+        """Test error handling when vector store fails"""
+        # Mock successful document loading but failed vector store
+        mock_rag_service.document_loader.load_document.return_value = (
+            [{"id": "test_1", "content": "test content", "metadata": {"source": "/test/file.pdf"}}], None
+        )
+        mock_rag_service.vector_store.add_documents = AsyncMock(return_value=False)
+        
+        context = DocumentContext(
+            context_type=["technical"],
+            content_domain=["api_documentation"],
+            document_category=["user_guide"]
+        )
+        request = DocumentUploadRequest(
+            file_path="/test/file.pdf",
+            context=context
+        )
+        
+        result = await context_aware_service.add_document_with_context(request)
+        
+        assert result["success"] is False
+        assert "Failed to add documents to vector store" in result["message"]
     
     @pytest.mark.asyncio
     async def test_ask_question_with_context_success(self, context_aware_service, mock_rag_service):

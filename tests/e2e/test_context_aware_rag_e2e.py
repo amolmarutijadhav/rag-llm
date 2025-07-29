@@ -19,7 +19,6 @@ API_TIMEOUT = 30
 class TestContextAwareRAGE2E:
     """End-to-End tests for Context-Aware RAG system"""
     
-    @pytest.mark.skip(reason="Document upload has page_content issue - to be fixed")
     def test_context_aware_document_upload_e2e(self):
         """Test end-to-end document upload with context"""
         # Create a temporary test document
@@ -667,6 +666,114 @@ Web Security Best Practices
         
         print(f"✅ Knowledge base cleared: {clear_result}")
 
+    def test_context_aware_file_upload_workflow_e2e(self):
+        """Test complete end-to-end workflow with file upload and chat"""
+        # Create a temporary test document
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("""
+Python Programming Best Practices
+
+1. Code Organization
+   - Use meaningful variable names
+   - Follow PEP 8 style guidelines
+   - Organize code into modules and packages
+
+2. Error Handling
+   - Use try-except blocks appropriately
+   - Log errors with context
+   - Provide meaningful error messages
+
+3. Performance Optimization
+   - Use list comprehensions when appropriate
+   - Avoid unnecessary loops
+   - Profile code to identify bottlenecks
+
+4. Testing
+   - Write unit tests for all functions
+   - Use pytest for testing framework
+   - Maintain high test coverage
+            """)
+            temp_file_path = f.name
+        
+        try:
+            # Step 1: Upload document with context
+            with open(temp_file_path, 'rb') as file:
+                files = {"file": ("python_best_practices.txt", file, "text/plain")}
+                data = {
+                    "context_type": "technical",
+                    "content_domain": "programming",
+                    "document_category": "best_practices",
+                    "relevance_tags": "python,programming,testing",
+                    "description": "Python programming best practices guide"
+                }
+                
+                upload_response = requests.post(
+                    f"{BASE_URL}/context-aware-documents/upload",
+                    files=files,
+                    data=data,
+                    timeout=API_TIMEOUT
+                )
+            
+            assert upload_response.status_code == 200
+            upload_result = upload_response.json()
+            assert upload_result["success"] is True
+            assert upload_result["documents_added"] > 0
+            print(f"✅ File uploaded: {upload_result}")
+            
+            # Step 2: Wait for processing
+            time.sleep(3)
+            
+            # Step 3: Test chat with RAG_ONLY mode
+            chat_request = {
+                "model": "gpt-4",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant. RESPONSE_MODE: RAG_ONLY"
+                    },
+                    {
+                        "role": "user",
+                        "content": "What are the best practices for Python error handling?"
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+            
+            chat_response = requests.post(
+                f"{BASE_URL}/chat/completions",
+                json=chat_request,
+                timeout=API_TIMEOUT
+            )
+            
+            assert chat_response.status_code == 200
+            chat_result = chat_response.json()
+            assert "choices" in chat_result
+            assert len(chat_result["choices"]) > 0
+            assert "message" in chat_result["choices"][0]
+            assert "content" in chat_result["choices"][0]["message"]
+            
+            content = chat_result["choices"][0]["message"]["content"]
+            print(f"✅ Chat response: {content[:100]}...")
+            
+            # Step 4: Test stats endpoint
+            stats_response = requests.get(
+                f"{BASE_URL}/context-aware-documents/stats",
+                timeout=API_TIMEOUT
+            )
+            
+            assert stats_response.status_code == 200
+            stats_result = stats_response.json()
+            assert stats_result["success"] is True
+            assert "vector_store" in stats_result
+            assert stats_result["vector_store"]["total_documents"] > 0
+            
+            print(f"✅ Stats: {stats_result['vector_store']['total_documents']} documents")
+            
+        finally:
+            # Clean up temporary file
+            os.unlink(temp_file_path)
+
 
 class TestContextAwareRAGErrorHandlingE2E:
     """Test error handling in Context-Aware RAG system"""
@@ -756,6 +863,73 @@ class TestContextAwareRAGErrorHandlingE2E:
         assert "No user message found" in result["detail"]
         
         print(f"✅ Chat without user message error handled: {result}")
+
+    def test_document_upload_invalid_file_format_e2e(self):
+        """Test document upload with invalid file format"""
+        # Create a temporary file with invalid extension
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.invalid', delete=False) as f:
+            f.write("This is an invalid file format that should not be processed.")
+            temp_file_path = f.name
+        
+        try:
+            with open(temp_file_path, 'rb') as file:
+                files = {"file": ("test_doc.invalid", file, "text/plain")}
+                data = {
+                    "context_type": "technical",
+                    "content_domain": "api_documentation",
+                    "document_category": "user_guide"
+                }
+                
+                response = requests.post(
+                    f"{BASE_URL}/context-aware-documents/upload",
+                    files=files,
+                    data=data,
+                    timeout=API_TIMEOUT
+                )
+            
+            # Should return 500 for unsupported file format
+            assert response.status_code == 500
+            result = response.json()
+            assert "detail" in result
+            assert "Error adding document" in result["detail"]
+            
+            print(f"✅ Invalid file format properly rejected: {result}")
+            
+        finally:
+            os.unlink(temp_file_path)
+
+    def test_document_upload_missing_required_fields_e2e(self):
+        """Test document upload with missing required fields"""
+        # Create a temporary test file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("This is a test document.")
+            temp_file_path = f.name
+        
+        try:
+            with open(temp_file_path, 'rb') as file:
+                files = {"file": ("test_doc.txt", file, "text/plain")}
+                # Missing required fields: context_type, content_domain, document_category
+                data = {
+                    "relevance_tags": "test",
+                    "description": "Test document"
+                }
+                
+                response = requests.post(
+                    f"{BASE_URL}/context-aware-documents/upload",
+                    files=files,
+                    data=data,
+                    timeout=API_TIMEOUT
+                )
+            
+            # Should return 422 for validation error
+            assert response.status_code == 422
+            result = response.json()
+            assert "detail" in result
+            
+            print(f"✅ Missing required fields properly rejected: {result}")
+            
+        finally:
+            os.unlink(temp_file_path)
 
 
 if __name__ == "__main__":
