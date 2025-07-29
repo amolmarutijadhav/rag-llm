@@ -121,6 +121,23 @@ class ResponseMode(str, Enum):
 - **RAG_PRIORITY**: Prefer RAG, use LLM only for gaps
 - **LLM_PRIORITY**: Prefer LLM, use RAG only for specific topics
 
+### Default Parameters (Updated for Production)
+```python
+class SystemMessageDirective(BaseModel):
+    response_mode: ResponseMode = ResponseMode.SMART_FALLBACK  # Default: Intelligent decision making
+    min_confidence: Optional[float] = 0.7                      # Default: 70% confidence threshold
+    fallback_strategy: str = "hybrid"                          # Default: Combine RAG + LLM
+    document_context: Optional[List[str]] = None              # Default: All contexts
+    content_domains: Optional[List[str]] = None               # Default: All domains
+    document_categories: Optional[List[str]] = None           # Default: All categories
+```
+
+### Default Parameter Rationale
+- **SMART_FALLBACK**: Provides intelligent, confidence-based decision making
+- **0.7 Confidence**: Ensures high-quality responses with reduced hallucination
+- **"hybrid" Fallback**: Maximizes information utilization from both RAG and LLM
+- **No Context Filtering**: Searches all documents by default for maximum coverage
+
 ## Decision 4: Document Context Filtering Strategy
 
 ### Chosen Option: Option D (Hierarchical Matching)

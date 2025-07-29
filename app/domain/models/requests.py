@@ -90,12 +90,12 @@ class DocumentContext(BaseModel):
 
 class SystemMessageDirective(BaseModel):
     """Parsed system message directives"""
-    response_mode: ResponseMode = ResponseMode.HYBRID
+    response_mode: ResponseMode = ResponseMode.SMART_FALLBACK
     document_context: Optional[List[str]] = None  # List of context types to use
     content_domains: Optional[List[str]] = None  # List of content domains to focus on
     document_categories: Optional[List[str]] = None  # List of document categories to use
-    min_confidence: Optional[float] = 0.5  # Minimum confidence for RAG results
-    fallback_strategy: str = "llm_knowledge"  # llm_knowledge, refuse, hybrid
+    min_confidence: Optional[float] = 0.7  # Minimum confidence for RAG results
+    fallback_strategy: str = "hybrid"  # llm_knowledge, refuse, hybrid
     
     @validator('min_confidence')
     def validate_confidence(cls, v):

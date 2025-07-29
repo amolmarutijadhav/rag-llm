@@ -352,13 +352,13 @@ Database Design Principles
         # Wait a moment for processing
         time.sleep(2)
         
-        # Test chat with SMART_FALLBACK mode
+        # Test chat with SMART_FALLBACK mode (now default)
         chat_request = {
             "model": "gpt-4",
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant. RESPONSE_MODE: SMART_FALLBACK\nMIN_CONFIDENCE: 0.8"
+                    "content": "You are a helpful assistant. MIN_CONFIDENCE: 0.8"
                 },
                 {
                     "role": "user",

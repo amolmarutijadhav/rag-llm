@@ -79,25 +79,25 @@ class TestSystemMessageParser:
         system_message = "RESPONSE_MODE: INVALID_MODE"
         directive = SystemMessageParser.parse_system_message(system_message)
         
-        # Should use default (HYBRID)
-        assert directive.response_mode == ResponseMode.HYBRID
+        # Should use default (SMART_FALLBACK)
+        assert directive.response_mode == ResponseMode.SMART_FALLBACK
     
     def test_invalid_confidence_handling(self):
         """Test handling of invalid confidence value"""
         system_message = "MIN_CONFIDENCE: invalid_value"
         directive = SystemMessageParser.parse_system_message(system_message)
         
-        # Should use default (0.5)
-        assert directive.min_confidence == 0.5
+        # Should use default (0.7)
+        assert directive.min_confidence == 0.7
     
     def test_empty_system_message(self):
         """Test parsing empty system message"""
         directive = SystemMessageParser.parse_system_message("")
         
         # Should return default directive
-        assert directive.response_mode == ResponseMode.HYBRID
-        assert directive.min_confidence == 0.5
-        assert directive.fallback_strategy == "llm_knowledge"
+        assert directive.response_mode == ResponseMode.SMART_FALLBACK
+        assert directive.min_confidence == 0.7
+        assert directive.fallback_strategy == "hybrid"
     
     def test_partial_directives(self):
         """Test parsing with only some directives specified"""
@@ -108,8 +108,8 @@ class TestSystemMessageParser:
         assert directive.document_context is None
         assert directive.content_domains is None
         assert directive.document_categories is None
-        assert directive.min_confidence == 0.5  # Default
-        assert directive.fallback_strategy == "llm_knowledge"  # Default
+        assert directive.min_confidence == 0.7  # Default
+        assert directive.fallback_strategy == "hybrid"  # Default
     
     def test_case_insensitive_parsing(self):
         """Test case insensitive parsing"""
@@ -138,20 +138,20 @@ class TestSystemMessageParser:
         assert directive.content_domains == ["api_documentation", "user_support"]
     
     def test_missing_config_section(self):
-        """Test handling of JSON-like format with missing config section"""
+        """Test handling of malformed config section - should be parsed as simple keywords"""
         system_message = "You are an assistant. <config>RESPONSE_MODE: HYBRID"
         directive = SystemMessageParser.parse_system_message(system_message)
         
-        # Should fall back to default directive
+        # Should be parsed as simple keywords since </config> is missing
         assert directive.response_mode == ResponseMode.HYBRID
     
     def test_get_default_directive(self):
         """Test getting default directive"""
         directive = SystemMessageParser.get_default_directive()
         
-        assert directive.response_mode == ResponseMode.HYBRID
-        assert directive.min_confidence == 0.5
-        assert directive.fallback_strategy == "llm_knowledge"
+        assert directive.response_mode == ResponseMode.SMART_FALLBACK
+        assert directive.min_confidence == 0.7
+        assert directive.fallback_strategy == "hybrid"
         assert directive.document_context is None
         assert directive.content_domains is None
         assert directive.document_categories is None
