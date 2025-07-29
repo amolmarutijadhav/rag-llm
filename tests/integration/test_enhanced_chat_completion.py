@@ -3,7 +3,7 @@ Integration tests for enhanced chat completion endpoint.
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -12,8 +12,8 @@ client = TestClient(app)
 class TestEnhancedChatCompletionEndpoint:
     """Test enhanced chat completion endpoint"""
     
-    @patch('app.api.routes.enhanced_chat.enhanced_service')
-    def test_enhanced_chat_completion_basic(self, mock_service):
+    @patch('app.domain.services.enhanced_chat_completion_service.EnhancedChatCompletionService.process_request')
+    def test_enhanced_chat_completion_basic(self, mock_process_request):
         """Test basic enhanced chat completion"""
         # Mock the service response
         from app.domain.models.responses import ChatCompletionResponse
@@ -57,7 +57,9 @@ class TestEnhancedChatCompletionEndpoint:
                 "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
             }
         )
-        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
+        # Configure the async mock
+        mock_process_request.return_value = mock_response
         
         request_data = {
             "model": "gpt-3.5-turbo",
@@ -84,9 +86,12 @@ class TestEnhancedChatCompletionEndpoint:
         assert "content" in data["choices"][0]["message"]
         assert "usage" in data
         assert "sources" in data
+        
+        # Verify the mock was called
+        mock_process_request.assert_called_once()
     
-    @patch('app.api.routes.enhanced_chat.enhanced_service')
-    def test_enhanced_chat_completion_with_conversation(self, mock_service):
+    @patch('app.domain.services.enhanced_chat_completion_service.EnhancedChatCompletionService.process_request')
+    def test_enhanced_chat_completion_with_conversation(self, mock_process_request):
         """Test enhanced chat completion with conversation context"""
         # Mock the service response
         from app.domain.models.responses import ChatCompletionResponse
@@ -101,7 +106,7 @@ class TestEnhancedChatCompletionEndpoint:
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": "Machine learning is a subset of AI that enables computers to learn from data."
+                        "content": "This is a test response with conversation context."
                     },
                     "finish_reason": "stop"
                 }
@@ -111,28 +116,36 @@ class TestEnhancedChatCompletionEndpoint:
                 "completion_tokens": 25,
                 "total_tokens": 40
             },
-            sources=[],
+            sources=[
+                {
+                    "content": "Conversation context source",
+                    "metadata": {"source": "conversation.txt"},
+                    "score": 0.92
+                }
+            ],
             metadata={
                 "conversation_aware": True,
-                "strategy_used": "topic_tracking",
-                "enhanced_queries_count": 4,
+                "strategy_used": "entity_extraction",
+                "enhanced_queries_count": 2,
                 "conversation_context": {
-                    "topics": ["ai", "machine", "learning"],
-                    "entities": ["AI", "Machine Learning"],
+                    "topics": ["conversation", "context"],
+                    "entities": ["conversation"],
                     "conversation_length": 4
                 },
-                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+                "processing_plugins": ["conversation_context", "multi_query_rag"]
             }
         )
-        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
+        # Configure the async mock
+        mock_process_request.return_value = mock_response
         
         request_data = {
             "model": "gpt-3.5-turbo",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "What is AI?"},
-                {"role": "assistant", "content": "AI stands for Artificial Intelligence."},
-                {"role": "user", "content": "Can you elaborate on machine learning?"}
+                {"role": "user", "content": "What is the capital of France?"},
+                {"role": "assistant", "content": "The capital of France is Paris."},
+                {"role": "user", "content": "What about Germany?"}
             ],
             "temperature": 0.7,
             "max_tokens": 1000
@@ -143,11 +156,27 @@ class TestEnhancedChatCompletionEndpoint:
         assert response.status_code == 200
         data = response.json()
         
-        # Check that response includes conversation awareness
+        # Check response structure
         assert "id" in data
+        assert "object" in data
+        assert data["object"] == "chat.completion"
         assert "choices" in data
         assert len(data["choices"]) > 0
+        assert "message" in data["choices"][0]
         assert "content" in data["choices"][0]["message"]
+        assert "usage" in data
+        assert "sources" in data
+        assert "metadata" in data
+        
+        # Check metadata
+        metadata = data["metadata"]
+        assert metadata["conversation_aware"] is True
+        assert "strategy_used" in metadata
+        assert "enhanced_queries_count" in metadata
+        assert "conversation_context" in metadata
+        
+        # Verify the mock was called
+        mock_process_request.assert_called_once()
     
     def test_enhanced_chat_completion_no_messages(self):
         """Test enhanced chat completion with no messages"""
@@ -170,7 +199,7 @@ class TestEnhancedChatCompletionEndpoint:
             "model": "gpt-3.5-turbo",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "assistant", "content": "Hello!"}
+                {"role": "assistant", "content": "I'm here to help!"}
             ],
             "temperature": 0.7,
             "max_tokens": 1000
@@ -225,8 +254,8 @@ class TestEnhancedChatCompletionEndpoint:
             assert "features" in plugin
             assert isinstance(plugin["features"], list)
     
-    @patch('app.api.routes.enhanced_chat.enhanced_service')
-    def test_enhanced_chat_completion_with_metadata(self, mock_service):
+    @patch('app.domain.services.enhanced_chat_completion_service.EnhancedChatCompletionService.process_request')
+    def test_enhanced_chat_completion_with_metadata(self, mock_process_request):
         """Test enhanced chat completion includes metadata"""
         # Mock the service response with metadata
         from app.domain.models.responses import ChatCompletionResponse
@@ -264,7 +293,9 @@ class TestEnhancedChatCompletionEndpoint:
                 "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
             }
         )
-        mock_service.process_request = AsyncMock(return_value=mock_response)
+        
+        # Configure the async mock
+        mock_process_request.return_value = mock_response
         
         request_data = {
             "model": "gpt-3.5-turbo",
@@ -281,11 +312,35 @@ class TestEnhancedChatCompletionEndpoint:
         assert response.status_code == 200
         data = response.json()
         
-        # Check for enhanced metadata
+        # Check response structure
+        assert "id" in data
+        assert "object" in data
+        assert data["object"] == "chat.completion"
+        assert "choices" in data
+        assert len(data["choices"]) > 0
+        assert "message" in data["choices"][0]
+        assert "content" in data["choices"][0]["message"]
+        assert "usage" in data
         assert "metadata" in data
+        
+        # Check metadata structure
         metadata = data["metadata"]
         assert metadata["conversation_aware"] is True
         assert "strategy_used" in metadata
         assert "enhanced_queries_count" in metadata
         assert "conversation_context" in metadata
-        assert "processing_plugins" in metadata 
+        assert "processing_plugins" in metadata
+        
+        # Check conversation context
+        context = metadata["conversation_context"]
+        assert "topics" in context
+        assert "entities" in context
+        assert "conversation_length" in context
+        
+        # Check processing plugins
+        plugins = metadata["processing_plugins"]
+        assert isinstance(plugins, list)
+        assert len(plugins) > 0
+        
+        # Verify the mock was called
+        mock_process_request.assert_called_once() 
