@@ -3,12 +3,16 @@ FastAPI middleware for logging unhandled exceptions.
 """
 
 from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.error_logging import ErrorLogger
 
-class ErrorLoggingMiddleware:
+class ErrorLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware that logs unhandled exceptions without interfering with FastAPI."""
     
-    async def __call__(self, request: Request, call_next):
+    def __init__(self, app):
+        super().__init__(app)
+    
+    async def dispatch(self, request: Request, call_next):
         try:
             response = await call_next(request)
             return response
