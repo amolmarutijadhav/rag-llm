@@ -6,13 +6,6 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from io import BytesIO
 from fastapi import UploadFile
 
-# Mock app.main before import to prevent hanging
-mock_app = MagicMock()
-sys.modules['app.main'] = MagicMock()
-sys.modules['app.main'].app = mock_app
-
-from app.main import app
-
 
 @pytest.mark.document_upload
 class TestDocumentUpload:

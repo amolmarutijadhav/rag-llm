@@ -53,8 +53,9 @@ class EnhancedBaseProvider:
         return api_logger.generate_curl_command(method, url, headers, body)
     
     async def _make_request_with_retries(self, method: str, url: str, headers: Dict[str, str], 
-                                       json_data: Optional[Dict[str, Any]] = None, 
-                                       params: Optional[Dict[str, Any]] = None) -> httpx.Response:
+                                      json_data: Optional[Dict[str, Any]] = None, 
+                                      data: Optional[Dict[str, Any]] = None,
+                                      params: Optional[Dict[str, Any]] = None) -> httpx.Response:
         """Make HTTP request with retries and comprehensive logging"""
         start_time = time.time()
         correlation_id = get_correlation_id()
@@ -75,13 +76,19 @@ class EnhancedBaseProvider:
         while retry_count <= self.max_retries:
             try:
                 async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
-                    response = await client.request(
-                        method=method,
-                        url=url,
-                        headers=headers,
-                        json=json_data,
-                        params=params
-                    )
+                    request_kwargs = {
+                        "method": method,
+                        "url": url,
+                        "headers": headers,
+                        "params": params
+                    }
+                    
+                    if json_data is not None:
+                        request_kwargs["json"] = json_data
+                    if data is not None:
+                        request_kwargs["data"] = data
+                        
+                    response = await client.request(**request_kwargs)
                     
                     duration_ms = (time.time() - start_time) * 1000
                     
@@ -233,12 +240,14 @@ class EnhancedBaseProvider:
     
     async def _make_request(self, method: str, url: str, headers: Dict[str, str], 
                            json_data: Optional[Dict[str, Any]] = None, 
+                           data: Optional[Dict[str, Any]] = None,
                            params: Optional[Dict[str, Any]] = None) -> httpx.Response:
         """Make HTTP request with enhanced logging and retries"""
-        return await self._make_request_with_retries(method, url, headers, json_data, params)
+        return await self._make_request_with_retries(method, url, headers, json_data, data, params)
     
     def _make_sync_request(self, method: str, url: str, headers: Dict[str, str],
                           json_data: Optional[Dict[str, Any]] = None, 
+                          data: Optional[Dict[str, Any]] = None,
                           params: Optional[Dict[str, Any]] = None) -> httpx.Response:
         """Make synchronous HTTP request with enhanced logging"""
         start_time = time.time()
@@ -256,13 +265,19 @@ class EnhancedBaseProvider:
         
         try:
             with httpx.Client(**self._get_client_kwargs()) as client:
-                response = client.request(
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    json=json_data,
-                    params=params
-                )
+                request_kwargs = {
+                    "method": method,
+                    "url": url,
+                    "headers": headers,
+                    "params": params
+                }
+                
+                if json_data is not None:
+                    request_kwargs["json"] = json_data
+                if data is not None:
+                    request_kwargs["data"] = data
+                    
+                response = client.request(**request_kwargs)
                 
                 duration_ms = (time.time() - start_time) * 1000
                 

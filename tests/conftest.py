@@ -20,23 +20,31 @@ def event_loop():
 
 
 @pytest.fixture
-def async_client():
-    """HTTP client for testing API endpoints."""
-    # Use TestClient for testing with correct constructor
-    return TestClient(app)
+def clean_app():
+    """Create a clean app instance for each test to avoid shared state issues."""
+    # Import here to ensure we get a fresh app instance
+    from app.main import app as fresh_app
+    return fresh_app
 
 
 @pytest.fixture
-async def async_client_real():
+def async_client(clean_app):
+    """HTTP client for testing API endpoints."""
+    # Use TestClient for testing with correct constructor
+    return TestClient(clean_app)
+
+
+@pytest.fixture
+async def async_client_real(clean_app):
     """Real async HTTP client for testing API endpoints."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(app=clean_app, base_url="http://test") as client:
         yield client
 
 
 @pytest.fixture
-def sync_client():
+def sync_client(clean_app):
     """Synchronous HTTP client for testing API endpoints."""
-    return TestClient(app)
+    return TestClient(clean_app)
 
 
 @pytest.fixture

@@ -2,21 +2,12 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-# Create a simple FastAPI app for testing
-app = FastAPI()
-
-@app.get("/test")
-def test_endpoint():
-    return {"status": "ok", "message": "test"}
-
-def test_simple_endpoint():
+def test_simple_endpoint(async_client):
     """Test that basic FastAPI testing works."""
-    client = TestClient(app)
-    response = client.get("/test")
+    response = async_client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
-    assert data["message"] == "test"
+    assert data["status"] == "healthy"
 
 def test_simple_math():
     """Test that basic pytest functionality works."""

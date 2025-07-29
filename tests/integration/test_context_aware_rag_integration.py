@@ -7,17 +7,19 @@ import tempfile
 import os
 from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
-from app.main import app
 from app.domain.models.requests import DocumentContext, DocumentUploadRequest, TextUploadRequest
 
-client = TestClient(app)
+@pytest.fixture
+def client(clean_app):
+    """Create a test client for each test to avoid shared state issues."""
+    return TestClient(clean_app)
 
 
 class TestContextAwareDocumentUpload:
     """Test context-aware document upload endpoints"""
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.add_document_with_context')
-    def test_upload_document_with_context_success(self, mock_add_document):
+    def test_upload_document_with_context_success(self, mock_add_document, client):
         """Test successful document upload with context"""
         # Mock the service response
         mock_add_document.return_value = {
@@ -66,7 +68,7 @@ class TestContextAwareDocumentUpload:
             os.unlink(temp_file_path)
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.add_text_with_context')
-    def test_upload_text_with_context_success(self, mock_add_text):
+    def test_upload_text_with_context_success(self, mock_add_text, client):
         """Test successful text upload with context"""
         # Mock the service response
         mock_add_text.return_value = {
@@ -104,7 +106,7 @@ class TestContextAwareDocumentUpload:
         # Verify the mock was called
         mock_add_text.assert_called_once()
     
-    def test_upload_document_missing_context(self):
+    def test_upload_document_missing_context(self, client):
         """Test document upload without required context"""
         # Create a temporary test file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -130,7 +132,7 @@ class TestContextAwareDocumentUpload:
             # Clean up temporary file
             os.unlink(temp_file_path)
     
-    def test_upload_document_invalid_context(self):
+    def test_upload_document_invalid_context(self, client):
         """Test document upload with invalid context"""
         # Create a temporary test file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -157,7 +159,7 @@ class TestContextAwareDocumentUpload:
             # Clean up temporary file
             os.unlink(temp_file_path)
     
-    def test_context_options_endpoint(self):
+    def test_context_options_endpoint(self, client):
         """Test context options endpoint"""
         response = client.get("/context-aware-documents/context-options")
         
@@ -185,7 +187,7 @@ class TestContextAwareChatCompletions:
     """Test context-aware chat completion endpoints"""
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.ask_question_with_context')
-    def test_chat_with_simple_context_directives(self, mock_ask_question):
+    def test_chat_with_simple_context_directives(self, mock_ask_question, client):
         """Test chat completion with simple context directives"""
         # Mock the service response
         mock_ask_question.return_value = {
@@ -231,7 +233,7 @@ class TestContextAwareChatCompletions:
         mock_ask_question.assert_called_once()
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.ask_question_with_context')
-    def test_chat_with_json_like_directives(self, mock_ask_question):
+    def test_chat_with_json_like_directives(self, mock_ask_question, client):
         """Test chat completion with JSON-like context directives"""
         # Mock the service response
         mock_ask_question.return_value = {
@@ -275,7 +277,7 @@ class TestContextAwareChatCompletions:
         mock_ask_question.assert_called_once()
     
     @patch('app.domain.services.enhanced_chat_completion_service.EnhancedChatCompletionService.process_request')
-    def test_chat_without_context_directives_fallback(self, mock_process_request):
+    def test_chat_without_context_directives_fallback(self, mock_process_request, client):
         """Test chat completion without context directives (fallback to existing service)"""
         # Mock the existing service response
         from app.domain.models.responses import ChatCompletionResponse
@@ -323,7 +325,7 @@ class TestContextAwareChatCompletions:
         mock_process_request.assert_called_once()
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.ask_question_with_context')
-    def test_chat_with_smart_fallback_mode(self, mock_ask_question):
+    def test_chat_with_smart_fallback_mode(self, mock_ask_question, client):
         """Test chat completion with SMART_FALLBACK response mode"""
         # Mock the service response
         mock_ask_question.return_value = {
@@ -366,7 +368,7 @@ class TestContextAwareChatCompletions:
         # Verify the mock was called
         mock_ask_question.assert_called_once()
     
-    def test_chat_validation_errors(self):
+    def test_chat_validation_errors(self, client):
         """Test chat completion validation errors"""
         # Empty messages
         request_data = {
@@ -398,7 +400,7 @@ class TestContextAwareStatsAndManagement:
     """Test context-aware stats and management endpoints"""
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.get_stats')
-    def test_context_aware_stats_endpoint(self, mock_get_stats):
+    def test_context_aware_stats_endpoint(self, mock_get_stats, client):
         """Test context-aware stats endpoint"""
         mock_get_stats.return_value = {
             "total_documents": 25,
@@ -421,7 +423,7 @@ class TestContextAwareStatsAndManagement:
         mock_get_stats.assert_called_once()
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.clear_knowledge_base')
-    def test_context_aware_clear_endpoint(self, mock_clear):
+    def test_context_aware_clear_endpoint(self, mock_clear, client):
         """Test context-aware clear endpoint"""
         mock_clear.return_value = {
             "success": True,
@@ -439,7 +441,7 @@ class TestContextAwareStatsAndManagement:
         # Verify the mock was called
         mock_clear.assert_called_once()
     
-    def test_enhanced_chat_context_options_endpoint(self):
+    def test_enhanced_chat_context_options_endpoint(self, client):
         """Test enhanced chat context options endpoint"""
         response = client.get("/enhanced-chat/context-options")
         
@@ -460,7 +462,7 @@ class TestContextAwareStatsAndManagement:
         assert "RAG_PRIORITY" in response_modes
         assert "LLM_PRIORITY" in response_modes
     
-    def test_enhanced_chat_context_aware_stats_endpoint(self):
+    def test_enhanced_chat_context_aware_stats_endpoint(self, client):
         """Test enhanced chat context-aware stats endpoint"""
         response = client.get("/enhanced-chat/context-aware-stats")
         
@@ -472,7 +474,7 @@ class TestContextAwareStatsAndManagement:
         assert "vector_store" in data
         assert "total_documents" in data["vector_store"]
     
-    def test_enhanced_chat_context_aware_clear_endpoint(self):
+    def test_enhanced_chat_context_aware_clear_endpoint(self, client):
         """Test enhanced chat context-aware clear endpoint"""
         response = client.delete("/enhanced-chat/context-aware-clear")  # Use DELETE method
         
@@ -487,7 +489,7 @@ class TestContextAwareEndToEndWorkflow:
     
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.add_document_with_context')
     @patch('app.domain.services.context_aware_rag_service.ContextAwareRAGService.ask_question_with_context')
-    def test_full_context_aware_workflow(self, mock_ask_question, mock_add_document):
+    def test_full_context_aware_workflow(self, mock_ask_question, mock_add_document, client):
         """Test complete context-aware workflow: upload document and ask question"""
         # Mock document upload
         mock_add_document.return_value = {

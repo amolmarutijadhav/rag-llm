@@ -48,7 +48,8 @@ class BaseProvider:
     
     @handle_provider_errors
     async def _make_request(self, method: str, url: str, headers: Dict[str, str], 
-                           json_data: Dict[str, Any] = None, params: Dict[str, Any] = None) -> httpx.Response:
+                           json_data: Dict[str, Any] = None, data: Dict[str, Any] = None, 
+                           params: Dict[str, Any] = None) -> httpx.Response:
         """
         Make an HTTP request with enhanced error handling and logging.
         
@@ -57,6 +58,7 @@ class BaseProvider:
             url: Request URL
             headers: Request headers
             json_data: JSON data for request body
+            data: Form data for request body
             params: Query parameters
             
         Returns:
@@ -66,19 +68,26 @@ class BaseProvider:
             Exception: If request fails
         """
         async with httpx.AsyncClient(**self._get_client_kwargs()) as client:
-            response = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params
-            )
+            request_kwargs = {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "params": params
+            }
+            
+            if json_data is not None:
+                request_kwargs["json"] = json_data
+            if data is not None:
+                request_kwargs["data"] = data
+                
+            response = await client.request(**request_kwargs)
             response.raise_for_status()
             return response
     
     @handle_provider_errors
     def _make_sync_request(self, method: str, url: str, headers: Dict[str, str],
-                          json_data: Dict[str, Any] = None, params: Dict[str, Any] = None) -> httpx.Response:
+                          json_data: Dict[str, Any] = None, data: Dict[str, Any] = None, 
+                          params: Dict[str, Any] = None) -> httpx.Response:
         """
         Make a synchronous HTTP request with enhanced error handling and logging.
         
@@ -87,6 +96,7 @@ class BaseProvider:
             url: Request URL
             headers: Request headers
             json_data: JSON data for request body
+            data: Form data for request body
             params: Query parameters
             
         Returns:
@@ -96,12 +106,18 @@ class BaseProvider:
             Exception: If request fails
         """
         with httpx.Client(**self._get_client_kwargs()) as client:
-            response = client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params
-            )
+            request_kwargs = {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "params": params
+            }
+            
+            if json_data is not None:
+                request_kwargs["json"] = json_data
+            if data is not None:
+                request_kwargs["data"] = data
+                
+            response = client.request(**request_kwargs)
             response.raise_for_status()
             return response 
