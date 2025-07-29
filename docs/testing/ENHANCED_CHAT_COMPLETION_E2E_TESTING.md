@@ -200,6 +200,40 @@ python tests/e2e/test_enhanced_chat_completion_e2e.py
 python -m pytest tests/e2e/test_enhanced_chat_completion_e2e.py::TestEnhancedChatCompletionE2ETestSuite::test_enhanced_chat_completion_basic_functionality -v
 ```
 
+### Test Reports Organization
+
+E2E test reports are automatically organized in the following structure:
+
+```
+tests/e2e/reports/
+├── enhanced_chat/
+│   ├── reports/     # Markdown report files (.md)
+│   └── results/     # JSON result files (.json)
+├── context_aware_rag/
+├── ocr_workflow/
+└── document_processing/
+```
+
+**Report Management**:
+- Reports are automatically generated with timestamps
+- Files are organized by test type for easy navigation
+- Reports are excluded from version control via `.gitignore`
+- Use the cleanup script for report management:
+
+```bash
+# List all reports
+python scripts/cleanup_reports.py --list
+
+# Show report statistics
+python scripts/cleanup_reports.py --stats
+
+# Clean up old reports (older than 7 days)
+python scripts/cleanup_reports.py --cleanup 7
+
+# Archive current reports
+python scripts/cleanup_reports.py --archive my_archive_name
+```
+
 ### Test Environment Setup
 
 The E2E test runner automatically:
@@ -371,7 +405,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: e2e-test-results
-          path: enhanced_chat_e2e_report_*.md
+          path: tests/e2e/reports/
 ```
 
 ### Test Automation

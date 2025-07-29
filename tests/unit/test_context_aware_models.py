@@ -139,12 +139,12 @@ class TestSystemMessageDirective:
         """Test default values for system message directive"""
         directive = SystemMessageDirective()
         
-        assert directive.response_mode == ResponseMode.HYBRID
+        assert directive.response_mode == ResponseMode.SMART_FALLBACK
         assert directive.document_context is None
         assert directive.content_domains is None
         assert directive.document_categories is None
-        assert directive.min_confidence == 0.5
-        assert directive.fallback_strategy == "llm_knowledge"
+        assert directive.min_confidence == 0.7
+        assert directive.fallback_strategy == "hybrid"
     
     def test_system_message_directive_confidence_validation(self):
         """Test confidence validation"""

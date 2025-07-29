@@ -139,8 +139,13 @@ class EnhancedChatE2ETestRunner:
         """Generate comprehensive test report"""
         print("\n📊 Generating Test Report...")
         
+        # Create reports directory structure
+        from pathlib import Path
+        reports_dir = Path("tests/e2e/reports/enhanced_chat/reports")
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"enhanced_chat_e2e_report_{timestamp}.md"
+        report_filename = reports_dir / f"enhanced_chat_e2e_report_{timestamp}.md"
         
         try:
             with open(report_filename, 'w', encoding='utf-8') as f:

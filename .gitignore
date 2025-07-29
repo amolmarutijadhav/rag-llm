@@ -201,6 +201,7 @@ config.json
 credentials.json
 
 # Test coverage
+tests/coverage/
 .coverage
 htmlcov/
 .tox/
@@ -242,3 +243,8 @@ local/
 htmlcov/
 .pytest_cache/
 .coverage
+
+# E2E Test Reports
+tests/e2e/reports/
+*.e2e_report_*.md
+*_e2e_results_*.json

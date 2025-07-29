@@ -80,7 +80,7 @@ class TestInhouseEmbeddingProvider:
             # Verify payload structure
             payload = call_args[1]['data']
             assert payload["text"] == "test text"
-            assert payload["model"] == provider.model
+            assert payload["embeddings_model"] == provider.model
             assert payload["format"] == "vector"
             
             # Verify result
@@ -290,7 +290,7 @@ class TestInhouseEmbeddingProvider:
             # Verify payload structure
             payload = call_args[1]['data']
             assert payload["text"] == "test text"
-            assert payload["model"] == provider.model
+            assert payload["embeddings_model"] == provider.model
             assert payload["format"] == "vector"
 
 

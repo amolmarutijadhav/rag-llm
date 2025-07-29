@@ -129,7 +129,7 @@ from PIL import Image
 
 # Create test image with text
 img = create_test_image_with_text(['Hello OCR World', 'Testing Tesseract'])
-img.save('test_ocr.png')
+img.save('tests/assets/images/test_ocr.png')
 
 # Extract text using OCR
 text = pytesseract.image_to_string(img)

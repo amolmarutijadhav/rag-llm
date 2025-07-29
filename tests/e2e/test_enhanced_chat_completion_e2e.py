@@ -902,8 +902,13 @@ class EnhancedChatCompletionE2ETestSuite:
     
     def save_test_results(self):
         """Save test results to JSON file"""
+        # Create results directory structure
+        from pathlib import Path
+        results_dir = Path("tests/e2e/reports/enhanced_chat/results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"enhanced_chat_completion_e2e_results_{timestamp}.json"
+        filename = results_dir / f"enhanced_chat_completion_e2e_results_{timestamp}.json"
         
         results_data = {
             "test_suite": "Enhanced Chat Completion E2E",

@@ -96,8 +96,8 @@ python scripts/run_tests.py --type fast
    ```bash
    # Remove test artifacts
    Remove-Item .pytest_cache -ErrorAction SilentlyContinue
-   Remove-Item coverage.xml -ErrorAction SilentlyContinue
-   Remove-Item htmlcov -Recurse -Force -ErrorAction SilentlyContinue
+   Remove-Item tests/coverage/reports/coverage.xml -ErrorAction SilentlyContinue
+   Remove-Item tests/coverage/html -Recurse -Force -ErrorAction SilentlyContinue
    ```
 
 ### 🎯 Quick Start Commands
@@ -113,7 +113,7 @@ python scripts/run_integration_tests.py --files tests/integration/test_basic.py 
 python scripts/run_integration_tests.py
 
 # 4. Check test coverage
-# Coverage reports are automatically generated in htmlcov/ and coverage.xml
+# Coverage reports are automatically generated in tests/coverage/html/ and tests/coverage/reports/coverage.xml
 ```
 
 ### 🚨 Troubleshooting
