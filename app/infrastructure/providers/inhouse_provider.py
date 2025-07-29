@@ -4,6 +4,8 @@ These are example implementations showing how to create custom providers for int
 """
 
 from typing import List, Dict, Any, Union
+import asyncio
+import time
 from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider, VectorStoreProvider
 from .enhanced_base_provider import EnhancedBaseProvider
 from app.core.logging_config import get_logger
@@ -23,6 +25,8 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
                 - api_key: In-house API key
                 - model: Embedding model name
                 - auth_scheme: Authentication scheme
+                - max_concurrent_requests: Maximum concurrent requests (default: 5)
+                - request_delay: Delay between requests in seconds (default: 0.1)
         """
         # Add provider name to config for logging
         config["provider_name"] = "inhouse_embeddings"
@@ -30,6 +34,8 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
         self.api_url = config.get("api_url")
         self.api_key = config.get("api_key")
         self.model = config.get("model", "inhouse-embedding-model")
+        self.max_concurrent_requests = config.get("max_concurrent_requests", 5)
+        self.request_delay = config.get("request_delay", 0.1)
         
         if not self.api_url:
             raise ValueError("In-house embedding API URL is required")
@@ -39,13 +45,101 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
                 'event_type': 'provider_initialized',
                 'provider': 'inhouse_embeddings',
                 'model': self.model,
-                'api_url': self.api_url
+                'api_url': self.api_url,
+                'max_concurrent_requests': self.max_concurrent_requests,
+                'request_delay': self.request_delay
             }
         })
     
+    async def get_single_embedding(self, text: str) -> List[float]:
+        """
+        Get embedding for a single text using in-house API.
+        
+        Args:
+            text: Single text string to embed
+            
+        Returns:
+            Embedding vector as list of floats
+            
+        Raises:
+            Exception: If embedding generation fails
+        """
+        logger.debug(f"Getting single embedding from in-house service", extra={
+            'extra_fields': {
+                'event_type': 'inhouse_single_embedding_request_start',
+                'provider': 'inhouse_embeddings',
+                'text_length': len(text),
+                'model': self.model
+            }
+        })
+        
+        try:
+            # Single text payload structure for in-house API
+            payload = {
+                "text": text,  # Single text instead of array
+                "embeddings_model": self.model,
+                "format": "vector"
+            }
+            
+            headers = self._get_headers(self.api_key, content_type="application/x-www-form-urlencoded")
+            response = await self._make_request("POST", self.api_url, headers, data=payload)
+            
+            data = response.json()
+            # Handle different response formats for single embedding
+            embedding = self._extract_single_embedding(data)
+            
+            logger.info(f"Successfully generated single embedding from in-house service", extra={
+                'extra_fields': {
+                    'event_type': 'inhouse_single_embedding_request_success',
+                    'provider': 'inhouse_embeddings',
+                    'text_length': len(text),
+                    'embedding_dimensions': len(embedding),
+                    'model': self.model
+                }
+            })
+            
+            return embedding
+            
+        except Exception as e:
+            logger.error(f"Failed to generate single embedding from in-house service", extra={
+                'extra_fields': {
+                    'event_type': 'inhouse_single_embedding_request_failure',
+                    'provider': 'inhouse_embeddings',
+                    'text_length': len(text),
+                    'model': self.model,
+                    'error': str(e)
+                }
+            })
+            raise Exception(f"In-house single embedding API error: {str(e)}")
+    
+    def _extract_single_embedding(self, data: Dict[str, Any]) -> List[float]:
+        """
+        Extract single embedding from API response with multiple format support.
+        
+        Args:
+            data: Response data from in-house API
+            
+        Returns:
+            Single embedding vector as list of floats
+            
+        Raises:
+            ValueError: If embedding cannot be extracted from response
+        """
+        # Handle different response formats
+        if "embedding" in data:
+            return data["embedding"]
+        elif "vector" in data:
+            return data["vector"]
+        elif "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
+            return data["data"][0].get("embedding", [])
+        elif "embeddings" in data and isinstance(data["embeddings"], list) and len(data["embeddings"]) > 0:
+            return data["embeddings"][0]
+        else:
+            raise ValueError(f"Unknown embedding response format: {list(data.keys())}")
+    
     async def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Get embeddings for text chunks using in-house API with enhanced logging.
+        Get embeddings for text chunks using in-house API with single text processing.
         
         Args:
             texts: List of text strings to embed
@@ -56,29 +150,24 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
         Raises:
             Exception: If embedding generation fails
         """
-        logger.debug(f"Getting embeddings from in-house service for {len(texts)} texts", extra={
+        logger.debug(f"Getting embeddings from in-house service for {len(texts)} texts (single processing)", extra={
             'extra_fields': {
                 'event_type': 'inhouse_embedding_request_start',
                 'provider': 'inhouse_embeddings',
                 'text_count': len(texts),
-                'model': self.model
+                'model': self.model,
+                'processing_mode': 'single_text'
             }
         })
         
+        start_time = time.time()
+        
         try:
-            # Example payload structure for in-house API
-            payload = {
-                "texts": texts,
-                "model": self.model,
-                "format": "vector"
-            }
+            # Process texts one by one with controlled concurrency
+            embeddings = await self._process_texts_sequentially(texts)
             
-            headers = self._get_headers(self.api_key)
-            response = await self._make_request("POST", self.api_url, headers, json_data=payload)
-            
-            data = response.json()
-            # Assuming in-house API returns embeddings in a different format
-            embeddings = data.get("embeddings", [])
+            duration_ms = (time.time() - start_time) * 1000
+            total_chars = sum(len(text) for text in texts)
             
             logger.info(f"Successfully generated embeddings from in-house service", extra={
                 'extra_fields': {
@@ -86,23 +175,79 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
                     'provider': 'inhouse_embeddings',
                     'text_count': len(texts),
                     'embedding_count': len(embeddings),
-                    'model': self.model
+                    'model': self.model,
+                    'duration_ms': duration_ms,
+                    'total_chars': total_chars,
+                    'avg_ms_per_text': duration_ms / len(texts) if texts else 0,
+                    'processing_mode': 'single_text'
                 }
             })
             
             return embeddings
             
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            
             logger.error(f"Failed to generate embeddings from in-house service", extra={
                 'extra_fields': {
                     'event_type': 'inhouse_embedding_request_failure',
                     'provider': 'inhouse_embeddings',
                     'text_count': len(texts),
                     'model': self.model,
-                    'error': str(e)
+                    'error': str(e),
+                    'duration_ms': duration_ms,
+                    'processing_mode': 'single_text'
                 }
             })
             raise Exception(f"In-house embedding API error: {str(e)}")
+    
+    async def _process_texts_sequentially(self, texts: List[str]) -> List[List[float]]:
+        """
+        Process texts sequentially with controlled concurrency and rate limiting.
+        
+        Args:
+            texts: List of text strings to process
+            
+        Returns:
+            List of embedding vectors
+        """
+        embeddings = []
+        
+        # Process texts with controlled concurrency
+        semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+        
+        async def process_single_text(text: str) -> List[float]:
+            async with semaphore:
+                embedding = await self.get_single_embedding(text)
+                # Add delay between requests to respect rate limits
+                if self.request_delay > 0:
+                    await asyncio.sleep(self.request_delay)
+                return embedding
+        
+        # Create tasks for all texts
+        tasks = [process_single_text(text) for text in texts]
+        
+        # Execute all tasks concurrently with controlled concurrency
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results and handle any exceptions
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to process text {i}", extra={
+                    'extra_fields': {
+                        'event_type': 'inhouse_embedding_text_failure',
+                        'provider': 'inhouse_embeddings',
+                        'text_index': i,
+                        'text_length': len(texts[i]) if i < len(texts) else 0,
+                        'error': str(result)
+                    }
+                })
+                # Return empty embedding for failed texts to maintain order
+                embeddings.append([])
+            else:
+                embeddings.append(result)
+        
+        return embeddings
     
     def get_model_info(self) -> Dict[str, Any]:
         """
@@ -115,7 +260,10 @@ class InhouseEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
             "provider": "inhouse",
             "model": self.model,
             "api_url": self.api_url,
-            "vector_size": 768  # Example size for in-house model
+            "vector_size": 768,  # Example size for in-house model
+            "processing_mode": "single_text",
+            "max_concurrent_requests": self.max_concurrent_requests,
+            "request_delay": self.request_delay
         }
 
 
