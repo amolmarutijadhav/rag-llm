@@ -180,8 +180,13 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                 "context_aware": True,
                 "response_mode": rag_result.get('response_mode', 'unknown'),
                 "context_used": rag_result.get('context_used', 'unknown'),
+                "decision_reason": rag_result.get('decision_reason'),
+                "rag_sources_count": rag_result.get('rag_sources_count', 0),
+                "rag_confidence": rag_result.get('rag_confidence'),
+                "llm_fallback_used": rag_result.get('llm_fallback_used', False),
                 "fallback_reason": rag_result.get('fallback_reason'),
-                "confidence_score": rag_result.get('confidence_score')
+                "confidence_score": rag_result.get('confidence_score'),
+                "decision_transparency": rag_result.get('decision_transparency', {})
             }
             
         else:

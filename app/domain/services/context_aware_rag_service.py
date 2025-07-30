@@ -188,22 +188,95 @@ class ResponseModeHandler:
         if not rag_result.get('success', False):
             # No RAG results found
             if directive.fallback_strategy == "refuse":
+                logger.info("RAG_ONLY: Refusing to answer - no RAG results and refuse strategy", extra={
+                    'extra_fields': {
+                        'event_type': 'rag_only_refuse_no_results',
+                        'fallback_strategy': directive.fallback_strategy,
+                        'correlation_id': correlation_id
+                    }
+                })
+                
                 return {
                     "success": False,
                     "answer": "I cannot answer this question as I don't have relevant information in my knowledge base.",
                     "sources": [],
                     "question": question,
                     "response_mode": "RAG_ONLY",
-                    "fallback_reason": "no_rag_results_and_refuse_strategy"
+                    "context_used": "rag_refused",
+                    "decision_reason": "no_rag_results_and_refuse_strategy",
+                    "rag_sources_count": 0,
+                    "rag_confidence": 0.0,
+                    "llm_fallback_used": False,
+                    "fallback_reason": "no_rag_results_and_refuse_strategy",
+                    "decision_transparency": {
+                        "rag_attempted": True,
+                        "rag_successful": False,
+                        "rag_documents_found": 0,
+                        "llm_fallback_triggered": False,
+                        "fallback_strategy": "refuse",
+                        "final_decision": "refuse_to_answer"
+                    }
                 }
             else:
                 # Fallback to LLM even in RAG_ONLY mode if configured
-                return await self._generate_llm_response(question, "You are a helpful assistant.")
+                logger.info("RAG_ONLY: Falling back to LLM despite RAG_ONLY mode", extra={
+                    'extra_fields': {
+                        'event_type': 'rag_only_llm_fallback',
+                        'fallback_strategy': directive.fallback_strategy,
+                        'correlation_id': correlation_id
+                    }
+                })
+                
+                llm_result = await self._generate_llm_response(question, "You are a helpful assistant.")
+                
+                return {
+                    **llm_result,
+                    "response_mode": "RAG_ONLY",
+                    "context_used": "llm_fallback",
+                    "decision_reason": "rag_no_results_but_llm_fallback_allowed",
+                    "rag_sources_count": 0,
+                    "rag_confidence": 0.0,
+                    "llm_fallback_used": True,
+                    "fallback_reason": f"no_rag_results_and_{directive.fallback_strategy}_strategy",
+                    "decision_transparency": {
+                        "rag_attempted": True,
+                        "rag_successful": False,
+                        "rag_documents_found": 0,
+                        "llm_fallback_triggered": True,
+                        "fallback_strategy": directive.fallback_strategy,
+                        "final_decision": "use_llm_fallback"
+                    }
+                }
+        
+        # RAG was successful
+        sources = rag_result.get('sources', [])
+        avg_confidence = sum(source.get('score', 0) for source in sources) / len(sources) if sources else 0.0
+        
+        logger.info("RAG_ONLY: Using RAG results successfully", extra={
+            'extra_fields': {
+                'event_type': 'rag_only_rag_success',
+                'sources_count': len(sources),
+                'avg_confidence': avg_confidence,
+                'correlation_id': correlation_id
+            }
+        })
         
         return {
             **rag_result,
             "response_mode": "RAG_ONLY",
-            "context_used": "rag_only"
+            "context_used": "rag_successful",
+            "decision_reason": "rag_found_relevant_documents",
+            "rag_sources_count": len(sources),
+            "rag_confidence": avg_confidence,
+            "llm_fallback_used": False,
+            "decision_transparency": {
+                "rag_attempted": True,
+                "rag_successful": True,
+                "rag_documents_found": len(sources),
+                "llm_fallback_triggered": False,
+                "fallback_strategy": directive.fallback_strategy,
+                "final_decision": "use_rag_results"
+            }
         }
     
     async def _handle_llm_only(self, question: str, system_message: str) -> Dict[str, Any]:
@@ -217,7 +290,31 @@ class ResponseModeHandler:
             }
         })
         
-        return await self._generate_llm_response(question, system_message)
+        llm_result = await self._generate_llm_response(question, system_message)
+        
+        logger.info("LLM_ONLY: Using LLM knowledge only", extra={
+            'extra_fields': {
+                'event_type': 'llm_only_success',
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return {
+            **llm_result,
+            "response_mode": "LLM_ONLY",
+            "context_used": "llm_knowledge_only",
+            "decision_reason": "llm_only_mode_requested",
+            "rag_sources_count": 0,
+            "rag_confidence": 0.0,
+            "llm_fallback_used": False,
+            "decision_transparency": {
+                "rag_attempted": False,
+                "rag_successful": False,
+                "rag_documents_found": 0,
+                "llm_fallback_triggered": False,
+                "final_decision": "use_llm_only"
+            }
+        }
     
     async def _handle_hybrid(self, question: str, system_message: str, directive: SystemMessageDirective, top_k: int) -> Dict[str, Any]:
         """Handle HYBRID mode - try RAG first, fallback to LLM"""
@@ -235,14 +332,63 @@ class ResponseModeHandler:
         
         if rag_result.get('success', False):
             # RAG found results, use them
+            sources = rag_result.get('sources', [])
+            avg_confidence = sum(source.get('score', 0) for source in sources) / len(sources) if sources else 0.0
+            
+            logger.info("HYBRID: Using RAG results", extra={
+                'extra_fields': {
+                    'event_type': 'hybrid_rag_success',
+                    'sources_count': len(sources),
+                    'avg_confidence': avg_confidence,
+                    'correlation_id': correlation_id
+                }
+            })
+            
             return {
                 **rag_result,
                 "response_mode": "HYBRID",
-                "context_used": "rag_enhanced_with_llm"
+                "context_used": "rag_enhanced_with_llm",
+                "decision_reason": "rag_found_relevant_documents",
+                "rag_sources_count": len(sources),
+                "rag_confidence": avg_confidence,
+                "llm_fallback_used": False,
+                "decision_transparency": {
+                    "rag_attempted": True,
+                    "rag_successful": True,
+                    "rag_documents_found": len(sources),
+                    "llm_fallback_triggered": False,
+                    "final_decision": "use_rag_results"
+                }
             }
         else:
             # No RAG results, fallback to LLM
-            return await self._generate_llm_response(question, system_message)
+            logger.info("HYBRID: Falling back to LLM - no RAG results", extra={
+                'extra_fields': {
+                    'event_type': 'hybrid_llm_fallback',
+                    'rag_success': False,
+                    'correlation_id': correlation_id
+                }
+            })
+            
+            llm_result = await self._generate_llm_response(question, system_message)
+            
+            return {
+                **llm_result,
+                "response_mode": "HYBRID",
+                "context_used": "llm_fallback",
+                "decision_reason": "rag_no_relevant_documents_found",
+                "rag_sources_count": 0,
+                "rag_confidence": 0.0,
+                "llm_fallback_used": True,
+                "fallback_reason": "no_rag_results_available",
+                "decision_transparency": {
+                    "rag_attempted": True,
+                    "rag_successful": False,
+                    "rag_documents_found": 0,
+                    "llm_fallback_triggered": True,
+                    "final_decision": "use_llm_fallback"
+                }
+            }
     
     async def _handle_smart_fallback(self, question: str, system_message: str, directive: SystemMessageDirective, top_k: int) -> Dict[str, Any]:
         """Handle SMART_FALLBACK mode - use confidence scoring"""
@@ -266,23 +412,124 @@ class ResponseModeHandler:
                 avg_score = sum(source.get('score', 0) for source in sources) / len(sources)
                 confidence = min(avg_score, 1.0)  # Normalize to 0-1
                 
+                logger.info("SMART_FALLBACK: RAG results found, calculating confidence", extra={
+                    'extra_fields': {
+                        'event_type': 'smart_fallback_confidence_calculation',
+                        'sources_count': len(sources),
+                        'avg_score': avg_score,
+                        'normalized_confidence': confidence,
+                        'min_confidence_threshold': directive.min_confidence,
+                        'correlation_id': correlation_id
+                    }
+                })
+                
                 if confidence >= directive.min_confidence:
                     # High confidence RAG result
+                    logger.info("SMART_FALLBACK: Using high confidence RAG results", extra={
+                        'extra_fields': {
+                            'event_type': 'smart_fallback_high_confidence_rag',
+                            'confidence': confidence,
+                            'threshold': directive.min_confidence,
+                            'correlation_id': correlation_id
+                        }
+                    })
+                    
                     return {
                         **rag_result,
                         "response_mode": "SMART_FALLBACK",
                         "context_used": "high_confidence_rag",
-                        "confidence_score": confidence
+                        "decision_reason": f"rag_confidence_{confidence:.2f}_above_threshold_{directive.min_confidence}",
+                        "rag_sources_count": len(sources),
+                        "rag_confidence": confidence,
+                        "llm_fallback_used": False,
+                        "confidence_score": confidence,
+                        "decision_transparency": {
+                            "rag_attempted": True,
+                            "rag_successful": True,
+                            "rag_documents_found": len(sources),
+                            "llm_fallback_triggered": False,
+                            "confidence_threshold": directive.min_confidence,
+                            "actual_confidence": confidence,
+                            "confidence_decision": "above_threshold",
+                            "final_decision": "use_high_confidence_rag"
+                        }
                     }
                 else:
                     # Low confidence, combine with LLM
+                    logger.info("SMART_FALLBACK: Low confidence RAG, combining with LLM", extra={
+                        'extra_fields': {
+                            'event_type': 'smart_fallback_low_confidence_hybrid',
+                            'confidence': confidence,
+                            'threshold': directive.min_confidence,
+                            'correlation_id': correlation_id
+                        }
+                    })
+                    
                     return await self._handle_hybrid(question, system_message, directive, top_k)
             else:
                 # No sources, fallback to LLM
-                return await self._generate_llm_response(question, system_message)
+                logger.info("SMART_FALLBACK: No RAG sources, falling back to LLM", extra={
+                    'extra_fields': {
+                        'event_type': 'smart_fallback_no_sources_llm',
+                        'correlation_id': correlation_id
+                    }
+                })
+                
+                llm_result = await self._generate_llm_response(question, system_message)
+                
+                return {
+                    **llm_result,
+                    "response_mode": "SMART_FALLBACK",
+                    "context_used": "llm_fallback",
+                    "decision_reason": "rag_no_sources_available",
+                    "rag_sources_count": 0,
+                    "rag_confidence": 0.0,
+                    "llm_fallback_used": True,
+                    "fallback_reason": "no_rag_sources_found",
+                    "confidence_score": 0.0,
+                    "decision_transparency": {
+                        "rag_attempted": True,
+                        "rag_successful": False,
+                        "rag_documents_found": 0,
+                        "llm_fallback_triggered": True,
+                        "confidence_threshold": directive.min_confidence,
+                        "actual_confidence": 0.0,
+                        "confidence_decision": "no_sources",
+                        "final_decision": "use_llm_fallback"
+                    }
+                }
         else:
             # No RAG results, use LLM
-            return await self._generate_llm_response(question, system_message)
+            logger.info("SMART_FALLBACK: No RAG results, using LLM", extra={
+                'extra_fields': {
+                    'event_type': 'smart_fallback_no_rag_llm',
+                    'correlation_id': correlation_id
+                }
+            })
+            
+            llm_result = await self._generate_llm_response(question, system_message)
+            
+            return {
+                **llm_result,
+                "response_mode": "SMART_FALLBACK",
+                "context_used": "llm_fallback",
+                "decision_reason": "rag_no_results_available",
+                "rag_sources_count": 0,
+                "rag_confidence": 0.0,
+                "llm_fallback_used": True,
+                "fallback_reason": "no_rag_results_found",
+                "confidence_score": 0.0,
+                "decision_transparency": {
+                    "rag_attempted": True,
+                    "rag_successful": False,
+                    "rag_documents_found": 0,
+                    "llm_fallback_triggered": True,
+                    "confidence_threshold": directive.min_confidence,
+                    "actual_confidence": 0.0,
+                    "confidence_decision": "no_results",
+                    "final_decision": "use_llm_fallback"
+                }
+            }
     
     async def _handle_rag_priority(self, question: str, system_message: str, directive: SystemMessageDirective, top_k: int) -> Dict[str, Any]:
         """Handle RAG_PRIORITY mode - prefer RAG, use LLM for gaps"""
@@ -299,15 +546,64 @@ class ResponseModeHandler:
         rag_result = await self.rag_service.ask_question(question, top_k)
         
         if rag_result.get('success', False):
-            # Use RAG result
+            # RAG was successful - use RAG result
+            sources = rag_result.get('sources', [])
+            avg_confidence = sum(source.get('score', 0) for source in sources) / len(sources) if sources else 0.0
+            
+            logger.info("RAG_PRIORITY: Using RAG results", extra={
+                'extra_fields': {
+                    'event_type': 'rag_priority_rag_success',
+                    'sources_count': len(sources),
+                    'avg_confidence': avg_confidence,
+                    'correlation_id': correlation_id
+                }
+            })
+            
             return {
                 **rag_result,
                 "response_mode": "RAG_PRIORITY",
-                "context_used": "rag_priority"
+                "context_used": "rag_priority",
+                "decision_reason": "rag_found_relevant_documents",
+                "rag_sources_count": len(sources),
+                "rag_confidence": avg_confidence,
+                "llm_fallback_used": False,
+                "decision_transparency": {
+                    "rag_attempted": True,
+                    "rag_successful": True,
+                    "rag_documents_found": len(sources),
+                    "llm_fallback_triggered": False,
+                    "final_decision": "use_rag_results"
+                }
             }
         else:
             # No RAG results, use LLM for gaps
-            return await self._generate_llm_response(question, system_message)
+            logger.info("RAG_PRIORITY: Falling back to LLM - no RAG results", extra={
+                'extra_fields': {
+                    'event_type': 'rag_priority_llm_fallback',
+                    'rag_success': False,
+                    'correlation_id': correlation_id
+                }
+            })
+            
+            llm_result = await self._generate_llm_response(question, system_message)
+            
+            return {
+                **llm_result,
+                "response_mode": "RAG_PRIORITY",
+                "context_used": "llm_fallback",
+                "decision_reason": "rag_no_relevant_documents_found",
+                "rag_sources_count": 0,
+                "rag_confidence": 0.0,
+                "llm_fallback_used": True,
+                "fallback_reason": "no_rag_results_available",
+                "decision_transparency": {
+                    "rag_attempted": True,
+                    "rag_successful": False,
+                    "rag_documents_found": 0,
+                    "llm_fallback_triggered": True,
+                    "final_decision": "use_llm_fallback"
+                }
+            }
     
     async def _handle_llm_priority(self, question: str, system_message: str, directive: SystemMessageDirective, top_k: int) -> Dict[str, Any]:
         """Handle LLM_PRIORITY mode - prefer LLM, use RAG for specific topics"""
@@ -325,22 +621,83 @@ class ResponseModeHandler:
         
         # Check if question might benefit from RAG (simple heuristic)
         rag_keywords = ['document', 'file', 'upload', 'specific', 'context', 'reference']
-        if any(keyword in question.lower() for keyword in rag_keywords):
+        rag_keywords_found = [keyword for keyword in rag_keywords if keyword in question.lower()]
+        
+        if rag_keywords_found:
+            logger.info("LLM_PRIORITY: RAG keywords detected, attempting RAG supplementation", extra={
+                'extra_fields': {
+                    'event_type': 'llm_priority_rag_keywords_detected',
+                    'rag_keywords_found': rag_keywords_found,
+                    'correlation_id': correlation_id
+                }
+            })
+            
             # Try RAG as well
             rag_result = await self.rag_service.ask_question(question, top_k)
             if rag_result.get('success', False):
                 # Combine LLM and RAG results
+                sources = rag_result.get('sources', [])
+                avg_confidence = sum(source.get('score', 0) for source in sources) / len(sources) if sources else 0.0
+                
+                logger.info("LLM_PRIORITY: RAG supplementation successful", extra={
+                    'extra_fields': {
+                        'event_type': 'llm_priority_rag_supplementation_success',
+                        'sources_count': len(sources),
+                        'avg_confidence': avg_confidence,
+                        'correlation_id': correlation_id
+                    }
+                })
+                
                 return {
                     **llm_result,
                     "response_mode": "LLM_PRIORITY",
                     "context_used": "llm_priority_with_rag_supplement",
-                    "rag_supplement": rag_result.get('sources', [])
+                    "decision_reason": f"llm_primary_with_rag_supplementation_keywords_{rag_keywords_found}",
+                    "rag_sources_count": len(sources),
+                    "rag_confidence": avg_confidence,
+                    "llm_fallback_used": False,
+                    "rag_supplement": sources,
+                    "decision_transparency": {
+                        "rag_attempted": True,
+                        "rag_successful": True,
+                        "rag_documents_found": len(sources),
+                        "llm_fallback_triggered": False,
+                        "rag_keywords_detected": rag_keywords_found,
+                        "final_decision": "use_llm_with_rag_supplement"
+                    }
                 }
+            else:
+                logger.info("LLM_PRIORITY: RAG supplementation failed, using LLM only", extra={
+                    'extra_fields': {
+                        'event_type': 'llm_priority_rag_supplementation_failed',
+                        'rag_keywords_found': rag_keywords_found,
+                        'correlation_id': correlation_id
+                    }
+                })
+        else:
+            logger.info("LLM_PRIORITY: No RAG keywords detected, using LLM only", extra={
+                'extra_fields': {
+                    'event_type': 'llm_priority_no_rag_keywords',
+                    'correlation_id': correlation_id
+                }
+            })
         
         return {
             **llm_result,
             "response_mode": "LLM_PRIORITY",
-            "context_used": "llm_priority"
+            "context_used": "llm_priority",
+            "decision_reason": "llm_primary_no_rag_supplementation_needed",
+            "rag_sources_count": 0,
+            "rag_confidence": 0.0,
+            "llm_fallback_used": False,
+            "decision_transparency": {
+                "rag_attempted": bool(rag_keywords_found),
+                "rag_successful": False,
+                "rag_documents_found": 0,
+                "llm_fallback_triggered": False,
+                "rag_keywords_detected": rag_keywords_found,
+                "final_decision": "use_llm_only"
+            }
         }
     
     async def _generate_llm_response(self, question: str, system_message: str) -> Dict[str, Any]:
@@ -362,13 +719,32 @@ class ResponseModeHandler:
         
         answer = await self.llm_provider.call_llm(messages)
         
+        logger.debug("LLM-only response generated successfully", extra={
+            'extra_fields': {
+                'event_type': 'llm_response_generation_success',
+                'answer_length': len(answer),
+                'correlation_id': correlation_id
+            }
+        })
+        
         return {
             "success": True,
             "answer": answer,
             "sources": [],
             "question": question,
             "response_mode": "LLM_ONLY",
-            "context_used": "llm_knowledge_only"
+            "context_used": "llm_knowledge_only",
+            "decision_reason": "llm_only_response_generated",
+            "rag_sources_count": 0,
+            "rag_confidence": 0.0,
+            "llm_fallback_used": False,
+            "decision_transparency": {
+                "rag_attempted": False,
+                "rag_successful": False,
+                "rag_documents_found": 0,
+                "llm_fallback_triggered": False,
+                "final_decision": "use_llm_only"
+            }
         }
 
 class ContextAwareRAGService:
