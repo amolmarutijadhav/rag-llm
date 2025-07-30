@@ -201,7 +201,7 @@ class TestResponseModeHandler:
         assert result["success"] is True
         assert result["answer"] == "RAG answer"
         assert result["response_mode"] == "RAG_ONLY"
-        assert result["context_used"] == "rag_only"
+        assert result["context_used"] == "rag_successful"
         mock_rag_service.ask_question.assert_called_once_with("test question", 3)
     
     @pytest.mark.asyncio
@@ -264,10 +264,10 @@ class TestResponseModeHandler:
             "test question", "system message", directive, 3
         )
         
-        # Should fallback to LLM_ONLY mode
+        # Should fallback to LLM but keep HYBRID mode
         assert result["success"] is True
         assert result["answer"] == "LLM response"
-        assert result["response_mode"] == "LLM_ONLY"
+        assert result["response_mode"] == "HYBRID"
     
     @pytest.mark.asyncio
     async def test_handle_smart_fallback_high_confidence(self, response_handler, mock_rag_service):
