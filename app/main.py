@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import sys
+import asyncio
 
 from app.api.routes import health, documents, questions, chat, enhanced_chat, context_aware_documents
 from app.core.config import Config
@@ -80,6 +81,41 @@ app.include_router(questions.router, prefix="/questions", tags=["questions"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(enhanced_chat.router, prefix="/enhanced-chat", tags=["enhanced-chat"])
 app.include_router(context_aware_documents.router)
+
+@app.middleware("http")
+async def timeout_middleware(request: Request, call_next):
+    """
+    Middleware to enforce request timeouts at the application level.
+    This wraps the entire request processing pipeline with a 120-second timeout.
+    """
+    # Set timeout to 120 seconds
+    timeout_seconds = 120
+    
+    try:
+        # Wrap the entire request processing in a timeout
+        response = await asyncio.wait_for(
+            call_next(request), 
+            timeout=timeout_seconds
+        )
+        return response
+        
+    except asyncio.TimeoutError:
+        # Log the timeout for debugging
+        logger.error(f"Request timeout after {timeout_seconds} seconds: {request.method} {request.url.path}", extra={
+            'extra_fields': {
+                'event_type': 'request_timeout',
+                'method': request.method,
+                'path': request.url.path,
+                'timeout_seconds': timeout_seconds,
+                'correlation_id': getattr(request.state, 'correlation_id', 'unknown')
+            }
+        })
+        
+        # Return a proper 504 Gateway Timeout response
+        raise HTTPException(
+            status_code=504, 
+            detail=f"Request timed out after {timeout_seconds} seconds"
+        )
 
 @app.middleware("http")
 async def add_correlation_id(request: Request, call_next):
