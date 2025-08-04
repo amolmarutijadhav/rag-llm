@@ -79,12 +79,17 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
         topics = []
         entities = []
         context_clues = []
+        persona_info = {}
         
         # Extract topics from system messages
         for message in messages:
             if message.role == "system":
                 topics.append("system_instruction")
                 context_clues.append(message.content)
+                
+                # Extract persona information
+                persona_info = self._extract_persona_info(message.content)
+                
             elif message.role == "user":
                 # Simple topic extraction (can be enhanced with NLP)
                 words = message.content.lower().split()
@@ -98,7 +103,8 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
             "entities": list(set(entities)),
             "context_clues": context_clues,
             "conversation_length": len(messages),
-            "last_user_message": next((msg.content for msg in reversed(messages) if msg.role == "user"), "")
+            "last_user_message": next((msg.content for msg in reversed(messages) if msg.role == "user"), ""),
+            "persona_info": persona_info
         }
         
         logger.debug("Conversation analysis completed", extra={
@@ -108,6 +114,7 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
                 'topics_count': len(result['topics']),
                 'entities_count': len(result['entities']),
                 'context_clues_count': len(result['context_clues']),
+                'persona_detected': bool(persona_info),
                 'correlation_id': correlation_id
             }
         })
@@ -165,6 +172,100 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
         words = text.split()
         entities = [word for word in words if word[0].isupper() and len(word) > 2]
         return entities
+
+    def _extract_persona_info(self, system_content: str) -> Dict[str, Any]:
+        """Extract persona information from system message"""
+        persona_info = {
+            "role": "",
+            "tone": "",
+            "style": "",
+            "expertise": "",
+            "personality_traits": []
+        }
+        
+        content_lower = system_content.lower()
+        
+        # Extract role (order matters - more specific roles first)
+        role_keywords = {
+            "doctor": ["doctor", "physician", "medical"],
+            "lawyer": ["lawyer", "attorney", "legal"],
+            "engineer": ["engineer", "developer", "technical"],
+            "teacher": ["teacher", "instructor", "educator", "tutor"],
+            "advisor": ["advisor", "counselor", "mentor", "guide"],
+            "agent": ["agent", "representative", "customer service"],
+            "analyst": ["analyst", "researcher", "investigator"],
+            "expert": ["expert", "specialist", "consultant"],
+            "assistant": ["assistant", "helper", "aid"]
+        }
+        
+        for role, keywords in role_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["role"] = role
+                break
+        
+        # Special case: if "professional" is used as a descriptor, check for more specific roles
+        if "professional" in content_lower and persona_info["role"] == "expert":
+            # Look for more specific roles that might be described as "professional"
+            specific_roles = ["doctor", "lawyer", "engineer", "teacher", "advisor", "agent"]
+            for specific_role in specific_roles:
+                if specific_role in content_lower:
+                    persona_info["role"] = specific_role
+                    break
+        
+        # Extract tone
+        tone_keywords = {
+            "friendly": ["friendly", "warm", "welcoming", "kind"],
+            "professional": ["professional", "formal", "business"],
+            "casual": ["casual", "informal", "relaxed"],
+            "sarcastic": ["sarcastic", "witty", "humorous", "funny"],
+            "serious": ["serious", "formal", "strict"],
+            "enthusiastic": ["enthusiastic", "excited", "energetic"],
+            "calm": ["calm", "patient", "gentle"]
+        }
+        
+        for tone, keywords in tone_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["tone"] = tone
+                break
+        
+        # Extract style
+        style_keywords = {
+            "concise": ["concise", "brief", "short", "direct"],
+            "detailed": ["detailed", "comprehensive", "thorough"],
+            "simple": ["simple", "easy", "basic"],
+            "technical": ["technical", "advanced", "complex"],
+            "conversational": ["conversational", "chatty", "talkative"]
+        }
+        
+        for style, keywords in style_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["style"] = style
+                break
+        
+        # Extract expertise areas
+        expertise_keywords = [
+            "technology", "medical", "legal", "financial", "educational",
+            "customer service", "technical support", "marketing", "sales",
+            "research", "analysis", "development", "design"
+        ]
+        
+        for expertise in expertise_keywords:
+            if expertise in content_lower:
+                persona_info["expertise"] = expertise
+                break
+        
+        # Extract personality traits
+        trait_keywords = [
+            "helpful", "patient", "knowledgeable", "experienced",
+            "creative", "analytical", "empathetic", "efficient",
+            "thorough", "reliable", "professional", "friendly"
+        ]
+        
+        for trait in trait_keywords:
+            if trait in content_lower:
+                persona_info["personality_traits"].append(trait)
+        
+        return persona_info
 
 class EntityExtractionStrategy(ConversationAnalysisStrategy):
     """Strategy that focuses on entity extraction and entity-aware queries"""
@@ -324,6 +425,13 @@ class ConversationContextPlugin(ChatCompletionPlugin):
             }
         })
         
+        # Extract and preserve original persona
+        original_persona = ""
+        for message in context.request.messages:
+            if message.role == "system":
+                original_persona = message.content
+                break
+        
         # Determine strategy based on request characteristics
         strategy = self.strategy_factory.get_strategy(context.request)
         context.strategy = strategy.get_strategy_name()
@@ -332,6 +440,16 @@ class ConversationContextPlugin(ChatCompletionPlugin):
         conversation_context = await strategy.analyze_conversation(context.request.messages)
         context.conversation_context = conversation_context
         
+        # Add persona information to conversation context
+        if original_persona:
+            context.conversation_context["original_persona"] = original_persona
+            context.conversation_context["persona_detected"] = True
+            context.conversation_context["persona_length"] = len(original_persona)
+        else:
+            context.conversation_context["original_persona"] = ""
+            context.conversation_context["persona_detected"] = False
+            context.conversation_context["persona_length"] = 0
+        
         logger.info("Conversation context processed", extra={
             'extra_fields': {
                 'event_type': 'conversation_context_plugin_complete',
@@ -339,6 +457,8 @@ class ConversationContextPlugin(ChatCompletionPlugin):
                 'strategy': context.strategy,
                 'topics_count': len(conversation_context.get('topics', [])),
                 'entities_count': len(conversation_context.get('entities', [])),
+                'persona_detected': bool(original_persona),
+                'persona_length': len(original_persona),
                 'correlation_id': correlation_id
             }
         })
@@ -475,6 +595,13 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
             }
         })
         
+        # Extract original system message (persona)
+        original_system_message = ""
+        for message in context.request.messages:
+            if message.role == "system":
+                original_system_message = message.content
+                break
+        
         # Get the last user message
         last_user_message = context.conversation_context.get('last_user_message', '')
         
@@ -488,11 +615,17 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 context_parts.append(f"Source: {source}\nContent: {content}")
             context_text = "\n\n".join(context_parts)
         
-        # Generate response using LLM
+        # Preserve original persona while adding RAG context
+        if context_text:
+            enhanced_system_message = f"{original_system_message}\n\nYou have access to the following relevant information that may help answer the user's question:\n{context_text}\n\nUse this information to provide more accurate and helpful responses while maintaining your designated role and personality."
+        else:
+            enhanced_system_message = original_system_message
+        
+        # Generate response using LLM with preserved persona
         messages = [
             {
                 "role": "system",
-                "content": f"You are a helpful assistant. Use the following context to answer the user's question. Consider the conversation context provided.\n\nContext:\n{context_text}"
+                "content": enhanced_system_message
             },
             {
                 "role": "user",
@@ -542,7 +675,10 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 "strategy_used": context.strategy,
                 "enhanced_queries_count": len(context.enhanced_queries or []),
                 "conversation_context": context.conversation_context,
-                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"]
+                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"],
+                "persona_preserved": True,
+                "original_persona_length": len(original_system_message),
+                "rag_context_added": bool(context_text)
             }
             
             logger.info("Response enhancement completed", extra={
@@ -551,6 +687,7 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                     'plugin': self.get_plugin_name(),
                     'content_length': len(content),
                     'sources_count': len(context.rag_results or []),
+                    'persona_preserved': True,
                     'correlation_id': correlation_id
                 }
             })
@@ -587,6 +724,23 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 },
                 "sources": []
             }
+            
+            # Preserve existing metadata and add fallback info
+            if not context.metadata:
+                context.metadata = {}
+            
+            context.metadata.update({
+                "conversation_aware": True,
+                "strategy_used": context.strategy or "unknown",
+                "enhanced_queries_count": len(context.enhanced_queries or []),
+                "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement_fallback"],
+                "persona_preserved": True,
+                "original_persona_length": len(original_system_message),
+                "persona_detected": bool(original_system_message),
+                "rag_context_added": bool(context_text),
+                "error_occurred": True,
+                "error_plugin": "response_enhancement"
+            })
         
         return context
 
@@ -759,12 +913,76 @@ class EnhancedChatCompletionService:
             # Process through plugin pipeline
             context = await self.plugin_manager.process_request(context)
             
-            # Build response
+            # Build response with fallback if needed
+            if context.response_data is None:
+                # Create fallback response if plugins failed
+                correlation_id = get_correlation_id()
+                last_user_message = ""
+                for message in request.messages:
+                    if message.role == "user":
+                        last_user_message = message.content
+                        break
+                
+                # Extract original persona for fallback metadata
+                original_persona = ""
+                for message in request.messages:
+                    if message.role == "system":
+                        original_persona = message.content
+                        break
+                
+                context.response_data = {
+                    "id": f"chatcmpl-{correlation_id}",
+                    "object": "chat.completion",
+                    "created": int(__import__('time').time()),
+                    "model": request.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "I'm sorry, I encountered an error while processing your request."
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": len(last_user_message.split()),
+                        "completion_tokens": 0,
+                        "total_tokens": len(last_user_message.split())
+                    },
+                    "sources": []
+                }
+                
+                # Set fallback metadata
+                context.metadata = {
+                    "conversation_aware": False,
+                    "strategy_used": "fallback",
+                    "enhanced_queries_count": 0,
+                    "processing_plugins": ["fallback"],
+                    "persona_preserved": False,
+                    "original_persona_length": len(original_persona),
+                    "persona_detected": bool(original_persona),
+                    "rag_context_added": False,
+                    "error_occurred": True
+                }
+            
             response = ChatCompletionResponse(**context.response_data)
             
             # Add enhanced metadata if available
             if context.metadata:
                 response.metadata = context.metadata
+            else:
+                # Ensure metadata is always present
+                response.metadata = {
+                    "conversation_aware": False,
+                    "strategy_used": "unknown",
+                    "enhanced_queries_count": 0,
+                    "processing_plugins": [],
+                    "persona_preserved": False,
+                    "original_persona_length": 0,
+                    "persona_detected": False,
+                    "rag_context_added": False
+                }
             
             logger.info("Enhanced chat completion request completed", extra={
                 'extra_fields': {

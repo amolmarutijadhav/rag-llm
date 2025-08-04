@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-08-04T17:50:42.714872",
+  "summary": {
+    "passed": 1,
+    "partial": 3,
+    "failed": 0,
+    "total": 4
+  },
+  "results": [
+    {
+      "test_name": "Sarcastic Comedian",
+      "status": "PARTIAL",
+      "persona_preserved": true,
+      "persona_detected": false,
+      "persona_maintained": false,
+      "response_length": 155
+    },
+    {
+      "test_name": "Professional Doctor",
+      "status": "PASS",
+      "persona_preserved": true,
+      "persona_detected": false,
+      "persona_maintained": true,
+      "response_length": 444
+    },
+    {
+      "test_name": "Friendly Customer Service",
+      "status": "PARTIAL",
+      "persona_preserved": true,
+      "persona_detected": false,
+      "persona_maintained": false,
+      "response_length": 169
+    },
+    {
+      "test_name": "Technical Expert",
+      "status": "PARTIAL",
+      "persona_preserved": true,
+      "persona_detected": false,
+      "persona_maintained": false,
+      "response_length": 1433
+    }
+  ]
+}

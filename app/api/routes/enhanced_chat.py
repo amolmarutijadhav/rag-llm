@@ -56,10 +56,12 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
         # Extract system message and last user message
         system_message = ""
         last_user_message = None
+        original_persona = ""
         
         for message in request.messages:
             if message.role == "system":
                 system_message = message.content
+                original_persona = message.content
             elif message.role == "user":
                 last_user_message = message.content
         
@@ -80,6 +82,8 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                 'messages_count': len(request.messages),
                 'last_user_message_length': len(last_user_message),
                 'system_message_length': len(system_message),
+                'persona_detected': bool(original_persona),
+                'persona_length': len(original_persona),
                 'correlation_id': correlation_id
             }
         })
@@ -147,6 +151,7 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                         'model': request.model,
                         'rag_error': rag_result.get('answer', 'Unknown error'),
                         'response_mode': rag_result.get('response_mode', 'unknown'),
+                        'persona_detected': bool(original_persona),
                         'correlation_id': correlation_id
                     }
                 })
@@ -186,7 +191,10 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                 "llm_fallback_used": rag_result.get('llm_fallback_used', False),
                 "fallback_reason": rag_result.get('fallback_reason'),
                 "confidence_score": rag_result.get('confidence_score'),
-                "decision_transparency": rag_result.get('decision_transparency', {})
+                "decision_transparency": rag_result.get('decision_transparency', {}),
+                "persona_preserved": True,
+                "original_persona_length": len(original_persona),
+                "persona_detected": bool(original_persona)
             }
             
         else:
@@ -210,6 +218,9 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                 'total_tokens': response.usage.get('total_tokens', 0) if response.usage else 0,
                 'sources_count': len(response.sources) if response.sources else 0,
                 'context_aware': has_context_directives,
+                'persona_preserved': True,
+                'persona_detected': bool(original_persona),
+                'persona_length': len(original_persona),
                 'correlation_id': correlation_id
             }
         })

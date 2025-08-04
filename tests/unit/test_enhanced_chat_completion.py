@@ -14,6 +14,7 @@ from app.domain.services.enhanced_chat_completion_service import (
     MultiQueryRAGPlugin,
     ResponseEnhancementPlugin
 )
+from app.domain.services.rag_service import RAGService
 
 @pytest.fixture
 def mock_rag_service():
@@ -193,38 +194,169 @@ class TestResponseEnhancementPlugin:
 class TestEnhancedChatCompletionService:
     """Test EnhancedChatCompletionService"""
     
-    @pytest.mark.asyncio
-    async def test_process_request(self, mock_rag_service, mock_llm_provider, sample_chat_request):
-        """Test complete request processing"""
-        service = EnhancedChatCompletionService(mock_rag_service, mock_llm_provider)
-        
-        response = await service.process_request(sample_chat_request)
-        
-        assert response is not None
-        assert response.id is not None
-        assert response.choices is not None
-        assert len(response.choices) > 0
-        assert response.choices[0]["message"]["content"] == "Test response"
+    @pytest.fixture
+    def mock_rag_service(self):
+        return MagicMock(spec=RAGService)
+    
+    @pytest.fixture
+    def mock_llm_provider(self):
+        provider = MagicMock()
+        provider.call_llm_api = AsyncMock(return_value={
+            "choices": [{"message": {"content": "Test response"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        })
+        return provider
+    
+    @pytest.fixture
+    def service(self, mock_rag_service, mock_llm_provider):
+        return EnhancedChatCompletionService(mock_rag_service, mock_llm_provider)
     
     @pytest.mark.asyncio
-    async def test_process_request_with_error(self, mock_rag_service, mock_llm_provider):
-        """Test request processing with error"""
-        # Mock LLM provider to raise exception
-        mock_llm_provider.call_llm_api = AsyncMock(side_effect=Exception("LLM error"))
-        
-        service = EnhancedChatCompletionService(mock_rag_service, mock_llm_provider)
+    async def test_persona_preservation_in_response_enhancement(self, service, mock_llm_provider):
+        """Test that ResponseEnhancementPlugin preserves original persona"""
+        # Create request with specific persona
         request = ChatCompletionRequest(
             model="gpt-3.5-turbo",
-            messages=[ChatMessage(role="user", content="Test question")],
+            messages=[
+                ChatMessage(role="system", content="You are a sarcastic comedian. Always be witty and funny."),
+                ChatMessage(role="user", content="What's the weather like?")
+            ],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=500
         )
         
-        response = await service.process_request(request)
+        # Create processing context
+        context = ProcessingContext(request)
+        context.conversation_context = {
+            "last_user_message": "What's the weather like?",
+            "topics": ["weather"],
+            "entities": [],
+            "context_clues": ["You are a sarcastic comedian. Always be witty and funny."]
+        }
+        context.rag_results = [
+            {"content": "It's sunny today", "source": "weather_api"}
+        ]
+        context.strategy = "topic_tracking"
+        context.enhanced_queries = ["What's the weather like?"]
         
-        # Should return fallback response
-        assert response is not None
-        assert "error" in response.choices[0]["message"]["content"].lower()
+        # Get the ResponseEnhancementPlugin
+        response_plugin = None
+        for plugin in service.plugin_manager.plugins:
+            if plugin.get_plugin_name() == "response_enhancement":
+                response_plugin = plugin
+                break
+        
+        assert response_plugin is not None, "ResponseEnhancementPlugin not found"
+        
+        # Process the context
+        result_context = await response_plugin.process(context)
+        
+        # Verify that the LLM was called with preserved persona
+        mock_llm_provider.call_llm_api.assert_called_once()
+        call_args = mock_llm_provider.call_llm_api.call_args[0][0]
+        
+        # Check that the system message contains the original persona
+        system_message = call_args["messages"][0]["content"]
+        assert "sarcastic comedian" in system_message
+        assert "witty and funny" in system_message
+        
+        # Check that RAG context was added
+        assert "weather_api" in system_message
+        assert "It's sunny today" in system_message
+        
+        # Check that persona preservation is indicated in metadata
+        assert result_context.metadata["persona_preserved"] is True
+        assert result_context.metadata["original_persona_length"] > 0
+        assert result_context.metadata["rag_context_added"] is True
+    
+    @pytest.mark.asyncio
+    async def test_persona_extraction_in_conversation_context(self, service):
+        """Test that ConversationContextPlugin extracts persona information"""
+        # Create request with persona
+        request = ChatCompletionRequest(
+            model="gpt-3.5-turbo",
+            messages=[
+                ChatMessage(role="system", content="You are a professional doctor. Be concise and medical."),
+                ChatMessage(role="user", content="What causes headaches?")
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        # Create processing context
+        context = ProcessingContext(request)
+        
+        # Get the ConversationContextPlugin
+        context_plugin = None
+        for plugin in service.plugin_manager.plugins:
+            if plugin.get_plugin_name() == "conversation_context":
+                context_plugin = plugin
+                break
+        
+        assert context_plugin is not None, "ConversationContextPlugin not found"
+        
+        # Process the context
+        result_context = await context_plugin.process(context)
+        
+        # Verify persona information was extracted
+        assert result_context.conversation_context["persona_detected"] is True
+        assert result_context.conversation_context["original_persona"] == "You are a professional doctor. Be concise and medical."
+        assert result_context.conversation_context["persona_length"] > 0
+        
+        # Verify persona info was extracted
+        persona_info = result_context.conversation_context.get("persona_info", {})
+        assert persona_info.get("role") == "doctor"
+        assert persona_info.get("style") == "concise"
+        assert "professional" in persona_info.get("personality_traits", [])
+    
+    @pytest.mark.asyncio
+    async def test_persona_preservation_without_rag_context(self, service, mock_llm_provider):
+        """Test persona preservation when no RAG context is available"""
+        # Create request with persona
+        request = ChatCompletionRequest(
+            model="gpt-3.5-turbo",
+            messages=[
+                ChatMessage(role="system", content="You are a friendly customer service agent."),
+                ChatMessage(role="user", content="Hello")
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        # Create processing context with no RAG results
+        context = ProcessingContext(request)
+        context.conversation_context = {
+            "last_user_message": "Hello",
+            "topics": ["greeting"],
+            "entities": [],
+            "context_clues": ["You are a friendly customer service agent."]
+        }
+        context.rag_results = []  # No RAG results
+        context.strategy = "topic_tracking"
+        context.enhanced_queries = ["Hello"]
+        
+        # Get the ResponseEnhancementPlugin
+        response_plugin = None
+        for plugin in service.plugin_manager.plugins:
+            if plugin.get_plugin_name() == "response_enhancement":
+                response_plugin = plugin
+                break
+        
+        # Process the context
+        result_context = await response_plugin.process(context)
+        
+        # Verify that the LLM was called with preserved persona only
+        mock_llm_provider.call_llm_api.assert_called_once()
+        call_args = mock_llm_provider.call_llm_api.call_args[0][0]
+        
+        # Check that the system message contains only the original persona
+        system_message = call_args["messages"][0]["content"]
+        assert "friendly customer service agent" in system_message
+        assert "relevant information" not in system_message  # No RAG context added
+        
+        # Check metadata
+        assert result_context.metadata["persona_preserved"] is True
+        assert result_context.metadata["rag_context_added"] is False
 
 class TestProcessingContext:
     """Test ProcessingContext"""

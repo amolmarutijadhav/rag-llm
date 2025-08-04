@@ -1,0 +1,31 @@
+{
+  "timestamp": "2025-08-04T17:48:35.157458",
+  "summary": {
+    "passed": 0,
+    "partial": 0,
+    "failed": 4,
+    "total": 4
+  },
+  "results": [
+    {
+      "test_name": "Sarcastic Comedian",
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /enhanced-chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000026C57BC1350>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    {
+      "test_name": "Professional Doctor",
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /enhanced-chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000026C55584550>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    {
+      "test_name": "Friendly Customer Service",
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /enhanced-chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000026C57BC3B10>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    {
+      "test_name": "Technical Expert",
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /enhanced-chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000026C57BCDE50>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    }
+  ]
+}
