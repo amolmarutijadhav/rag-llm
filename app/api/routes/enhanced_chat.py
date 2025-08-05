@@ -217,10 +217,10 @@ async def enhanced_chat_completions(request: ChatCompletionRequest):
                 'completion_tokens': response.usage.get('completion_tokens', 0) if response.usage else 0,
                 'total_tokens': response.usage.get('total_tokens', 0) if response.usage else 0,
                 'sources_count': len(response.sources) if response.sources else 0,
-                'context_aware': has_context_directives,
-                'persona_preserved': True,
-                'persona_detected': bool(original_persona),
-                'persona_length': len(original_persona),
+                'sources_details': response.sources if response.sources else [],  # Full sources for debugging
+                'metadata': response.metadata if hasattr(response, 'metadata') and response.metadata else {},  # Full metadata for debugging
+                'persona_preserved': response.metadata.get('persona_preserved', False) if hasattr(response, 'metadata') and response.metadata else False,
+                'rag_context_added': response.metadata.get('rag_context_added', False) if hasattr(response, 'metadata') and response.metadata else False,
                 'correlation_id': correlation_id
             }
         })

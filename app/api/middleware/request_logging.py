@@ -20,7 +20,7 @@ class EnhancedRequestLoggingMiddleware:
     def __init__(self, 
                  log_request_body: bool = True,
                  log_response_body: bool = True,
-                 max_body_size: int = 1024 * 10,  # 10KB
+                 max_body_size: int = 1024 * 50,  # 50KB (increased from 10KB for better debugging)
                  sensitive_headers: Optional[list] = None,
                  sensitive_body_fields: Optional[list] = None):
         """
@@ -147,7 +147,10 @@ class EnhancedRequestLoggingMiddleware:
                     'headers_count': len(headers),
                     'sanitized_headers': sanitized_headers,
                     'response_body_size': len(response_body) if response_body else 0,
-                    'response_body_preview': response_body[:200] + "..." if response_body and len(response_body) > 200 else response_body,
+                    'response_body_preview': response_body[:1000] + "..." if response_body and len(response_body) > 1000 else response_body,
+                    'response_body_full': response_body if response_body and len(response_body) <= 5000 else None,  # Include full body for smaller responses
+                    'response_sources_preview': self._extract_sources_preview(response_body) if response_body else None,  # Always include sources preview
+                    'response_metadata_preview': self._extract_metadata_preview(response_body) if response_body else None,  # Always include metadata preview
                     'correlation_id': correlation_id,
                     'timestamp': time.time()
                 }
@@ -268,6 +271,76 @@ class EnhancedRequestLoggingMiddleware:
                 }
             })
             return f"[ERROR_READING_BODY: {str(e)}]"
+
+    def _extract_sources_preview(self, response_body: str) -> Optional[Dict[str, Any]]:
+        """Extract sources preview from response body for debugging"""
+        try:
+            if not response_body:
+                return None
+            
+            # Try to parse as JSON
+            try:
+                body_json = json.loads(response_body)
+            except json.JSONDecodeError:
+                return None
+            
+            # Extract sources if present
+            sources = body_json.get('sources', [])
+            if not sources:
+                return None
+            
+            # Create preview with key information
+            sources_preview = []
+            for i, source in enumerate(sources[:3]):  # Limit to first 3 sources
+                source_preview = {
+                    "index": i,
+                    "source": source.get('source', 'Unknown'),
+                    "score": source.get('score', 0),
+                    "content_length": len(source.get('content', '')),
+                    "content_preview": source.get('content', '')[:200] + "..." if len(source.get('content', '')) > 200 else source.get('content', '')
+                }
+                sources_preview.append(source_preview)
+            
+            return {
+                "count": len(sources),
+                "sources": sources_preview
+            }
+            
+        except Exception:
+            return None
+
+    def _extract_metadata_preview(self, response_body: str) -> Optional[Dict[str, Any]]:
+        """Extract metadata preview from response body for debugging"""
+        try:
+            if not response_body:
+                return None
+            
+            # Try to parse as JSON
+            try:
+                body_json = json.loads(response_body)
+            except json.JSONDecodeError:
+                return None
+            
+            # Extract metadata if present
+            metadata = body_json.get('metadata', {})
+            if not metadata:
+                return None
+            
+            # Create preview with key debugging information
+            metadata_preview = {
+                "persona_preserved": metadata.get('persona_preserved', False),
+                "rag_context_added": metadata.get('rag_context_added', False),
+                "sources_count": metadata.get('sources_count', 0),
+                "strategy_used": metadata.get('strategy_used', 'unknown'),
+                "enhanced_queries_count": metadata.get('enhanced_queries_count', 0),
+                "context_aware": metadata.get('context_aware', False),
+                "processing_plugins": metadata.get('processing_plugins', [])
+            }
+            
+            return metadata_preview
+            
+        except Exception:
+            return None
 
 # Global instance for easy access
 enhanced_request_logging = EnhancedRequestLoggingMiddleware() 
