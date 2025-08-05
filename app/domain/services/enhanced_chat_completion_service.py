@@ -526,7 +526,8 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         all_results = []
         for query in enhanced_queries:
             try:
-                result = await self.rag_service.ask_question(query, top_k=2)
+                # Increase top_k from 2 to 5 for better context coverage
+                result = await self.rag_service.ask_question(query, top_k=5)
                 if result.get('success') and result.get('sources'):
                     all_results.extend(result['sources'])
             except Exception as e:
@@ -541,7 +542,8 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         
         # Deduplicate and rank results
         unique_results = self._deduplicate_results(all_results)
-        context.rag_results = unique_results[:5]  # Limit to top 5 results
+        # Increase limit from 5 to 10 for better context coverage
+        context.rag_results = unique_results[:10]  # Limit to top 10 results
         
         logger.info("Multi-query RAG processing completed", extra={
             'extra_fields': {
@@ -615,6 +617,20 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 source = result.get('source', 'Unknown')
                 context_parts.append(f"Source: {source}\nContent: {content}")
             context_text = "\n\n".join(context_parts)
+            
+            # Monitor context quality
+            context_length = len(context_text)
+            estimated_tokens = len(context_text.split()) * 1.3
+            
+            logger.info("Context prepared for LLM", extra={
+                'extra_fields': {
+                    'event_type': 'response_enhancement_context_prepared',
+                    'context_length': context_length,
+                    'estimated_tokens': estimated_tokens,
+                    'sources_count': len(context.rag_results),
+                    'correlation_id': correlation_id
+                }
+            })
         
         # Preserve original persona while adding RAG context
         if context_text:

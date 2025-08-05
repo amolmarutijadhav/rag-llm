@@ -44,7 +44,7 @@ class Config:
     # RAG Configuration
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 200
-    TOP_K_RESULTS = 3
+    TOP_K_RESULTS = 5  # Increased from 3 to 5 for better context coverage
     
     # RAG Prompt Templates
     RAG_PROMPT_TEMPLATE = os.getenv("RAG_PROMPT_TEMPLATE", """You are a helpful AI assistant that answers questions based on the provided context. 

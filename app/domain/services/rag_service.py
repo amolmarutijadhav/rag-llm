@@ -372,10 +372,30 @@ class RAGService:
             
             context = "\n\n".join(context_parts)
             
+            # Validate context length against token limits
+            token_config = token_config_service.get_config()
+            estimated_context_tokens = len(context.split()) * 1.3  # Rough token estimation
+            
+            if estimated_context_tokens > token_config.max_context_tokens:
+                logger.warning("Context exceeds token limit, truncating", extra={
+                    'extra_fields': {
+                        'event_type': 'rag_context_truncation_warning',
+                        'context_length': len(context),
+                        'estimated_tokens': estimated_context_tokens,
+                        'max_context_tokens': token_config.max_context_tokens,
+                        'correlation_id': correlation_id
+                    }
+                })
+                # Truncate context to fit within limits while preserving quality
+                words = context.split()
+                max_words = int(token_config.max_context_tokens / 1.3)
+                context = " ".join(words[:max_words])
+            
             logger.debug("Context extracted from search results", extra={
                 'extra_fields': {
                     'event_type': 'rag_context_extraction_complete',
                     'context_length': len(context),
+                    'estimated_tokens': estimated_context_tokens,
                     'sources_count': len(sources),
                     'correlation_id': correlation_id
                 }
