@@ -13,6 +13,7 @@ from app.domain.services.rag_service import RAGService
 from app.core.logging_config import get_logger, get_correlation_id
 import asyncio
 from collections import defaultdict
+from app.core.token_config import token_config_service
 
 logger = get_logger(__name__)
 
@@ -633,12 +634,15 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
             }
         ]
         
-        # Use call_llm_api for full control
+        # Use call_llm_api for full control with token-aware parameters
+        token_config = token_config_service.get_config()
+        max_tokens = token_config.get_response_tokens(context.request.max_tokens)
+        
         request = {
             "model": context.request.model,
             "messages": messages,
             "temperature": context.request.temperature,
-            "max_tokens": context.request.max_tokens
+            "max_tokens": max_tokens
         }
         
         try:

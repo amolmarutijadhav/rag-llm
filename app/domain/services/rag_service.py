@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from app.infrastructure.document_processing.loader import DocumentLoader
 from app.infrastructure.vector_store.vector_store import VectorStore
@@ -6,6 +8,7 @@ from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider, Vect
 from app.core.config import Config
 from app.core.logging_config import get_logger, get_correlation_id
 import os
+from app.core.token_config import token_config_service
 
 logger = get_logger(__name__)
 
@@ -359,8 +362,10 @@ class RAGService:
                 source = metadata.get("source", "Unknown")
                 
                 context_parts.append(content)
+                # Use token config for content preview length instead of hardcoded 200
+                preview_length = token_config_service.get_config().max_context_tokens // 10  # 10% of context tokens
                 sources.append({
-                    "content": content[:200] + "..." if len(content) > 200 else content,
+                    "content": content[:preview_length] + "..." if len(content) > preview_length else content,
                     "source": source,
                     "score": result["score"]
                 })
@@ -376,7 +381,7 @@ class RAGService:
                 }
             })
             
-            # Generate answer using LLM
+            # Generate answer using LLM with token-aware parameters
             logger.debug("Generating answer using LLM", extra={
                 'extra_fields': {
                     'event_type': 'rag_llm_generation_start',
@@ -385,6 +390,10 @@ class RAGService:
                     'correlation_id': correlation_id
                 }
             })
+            
+            # Use token config for max_tokens
+            token_config = token_config_service.get_config()
+            max_tokens = token_config.get_response_tokens()
             
             messages = [
                 {
@@ -397,7 +406,10 @@ class RAGService:
                 }
             ]
             
-            answer = await self.llm_provider.call_llm(messages)
+            answer = await self.llm_provider.call_llm(
+                messages, 
+                max_tokens=max_tokens
+            )
             
             logger.info("Answer generated successfully", extra={
                 'extra_fields': {

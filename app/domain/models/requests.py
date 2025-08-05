@@ -1,6 +1,7 @@
 from pydantic import BaseModel, validator
 from typing import Optional, List
 from enum import Enum
+from app.core.token_config import token_config_service
 
 class QuestionRequest(BaseModel):
     question: str
@@ -49,7 +50,13 @@ class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
     temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 1000
+    max_tokens: Optional[int] = None  # Will use token config service default
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Set default max_tokens from token config if not provided
+        if self.max_tokens is None:
+            self.max_tokens = token_config_service.get_config().max_response_tokens
 
 # Context-Aware RAG Models
 

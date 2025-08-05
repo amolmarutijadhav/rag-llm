@@ -2,10 +2,14 @@
 OpenAI provider implementations for embedding and LLM services with enhanced logging.
 """
 
+import asyncio
+import json
+import logging
 from typing import List, Dict, Any, Union
 from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider
 from .enhanced_base_provider import EnhancedBaseProvider
 from app.core.logging_config import get_logger
+from app.core.token_config import token_config_service
 
 logger = get_logger(__name__)
 
@@ -116,19 +120,18 @@ class OpenAIEmbeddingProvider(EnhancedBaseProvider, EmbeddingProvider):
 
 
 class OpenAILLMProvider(EnhancedBaseProvider, LLMProvider):
-    """OpenAI LLM service provider with enhanced logging."""
+    """OpenAI LLM Provider with enhanced logging"""
     
     def __init__(self, config: Dict[str, Any]):
         """
-        Initialize OpenAI LLM provider.
+        Initialize OpenAI LLM Provider.
         
         Args:
             config: Configuration dictionary containing:
-                - api_url: OpenAI chat completions API URL
+                - api_url: OpenAI API URL
                 - api_key: OpenAI API key
                 - default_model: Default model name
                 - default_temperature: Default temperature
-                - default_max_tokens: Default max tokens
                 - auth_scheme: Authentication scheme (default: "bearer")
         """
         # Add provider name to config for logging
@@ -138,7 +141,9 @@ class OpenAILLMProvider(EnhancedBaseProvider, LLMProvider):
         self.api_key = config.get("api_key")
         self.default_model = config.get("default_model", "gpt-3.5-turbo")
         self.default_temperature = config.get("default_temperature", 0.1)
-        self.default_max_tokens = config.get("default_max_tokens", 1000)
+        # Use token config service instead of hardcoded value
+        self.default_max_tokens = config.get("default_max_tokens", 
+                                           token_config_service.get_config().max_response_tokens)
         
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
@@ -148,7 +153,8 @@ class OpenAILLMProvider(EnhancedBaseProvider, LLMProvider):
                 'event_type': 'provider_initialized',
                 'provider': 'openai_llm',
                 'default_model': self.default_model,
-                'api_url': self.api_url
+                'api_url': self.api_url,
+                'default_max_tokens': self.default_max_tokens
             }
         })
     
