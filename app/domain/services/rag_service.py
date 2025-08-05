@@ -262,7 +262,7 @@ class RAGService:
                 "message": f"Error processing text: {str(e)}"
             }
     
-    async def ask_question(self, question: str, top_k: int = None) -> Dict[str, Any]:
+    async def ask_question(self, question: str, top_k: int = None, system_message: str = None) -> Dict[str, Any]:
         """Ask a question and get an answer using RAG with plugin architecture and enhanced logging"""
         correlation_id = get_correlation_id()
         
@@ -287,6 +287,7 @@ class RAGService:
                 'event_type': 'rag_question_processing_start',
                 'question_length': len(question),
                 'top_k': top_k,
+                'system_message_provided': system_message is not None,
                 'correlation_id': correlation_id
             }
         })
@@ -407,6 +408,7 @@ class RAGService:
                     'event_type': 'rag_llm_generation_start',
                     'question_length': len(question),
                     'context_length': len(context),
+                    'persona_preserved': system_message is not None,
                     'correlation_id': correlation_id
                 }
             })
@@ -415,10 +417,18 @@ class RAGService:
             token_config = token_config_service.get_config()
             max_tokens = token_config.get_response_tokens()
             
+            # Preserve original persona if provided, otherwise use default
+            if system_message:
+                # Preserve original persona while adding RAG context
+                enhanced_system_message = f"{system_message}\n\nYou have access to the following relevant information that may help answer the user's question:\n{context}\n\nUse this information to provide more accurate and helpful responses while maintaining your designated role and personality."
+            else:
+                # Use default system message for backward compatibility
+                enhanced_system_message = f"You are a helpful assistant. Use the following context to answer the user's question. If the context doesn't contain relevant information, say so.\n\nContext:\n{context}"
+            
             messages = [
                 {
                     "role": "system",
-                    "content": f"You are a helpful assistant. Use the following context to answer the user's question. If the context doesn't contain relevant information, say so.\n\nContext:\n{context}"
+                    "content": enhanced_system_message
                 },
                 {
                     "role": "user",
@@ -437,6 +447,7 @@ class RAGService:
                     'question_length': len(question),
                     'answer_length': len(answer),
                     'sources_count': len(sources),
+                    'persona_preserved': system_message is not None,
                     'correlation_id': correlation_id
                 }
             })

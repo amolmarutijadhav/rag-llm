@@ -522,12 +522,23 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         )
         context.enhanced_queries = enhanced_queries
         
+        # Extract original system message (persona) for RAG calls
+        original_system_message = ""
+        for message in context.request.messages:
+            if message.role == "system":
+                original_system_message = message.content
+                break
+        
         # Perform multi-query retrieval
         all_results = []
         for query in enhanced_queries:
             try:
-                # Increase top_k from 2 to 5 for better context coverage
-                result = await self.rag_service.ask_question(query, top_k=5)
+                # Pass original system message to preserve persona
+                result = await self.rag_service.ask_question(
+                    query, 
+                    top_k=5, 
+                    system_message=original_system_message
+                )
                 if result.get('success') and result.get('sources'):
                     all_results.extend(result['sources'])
             except Exception as e:
