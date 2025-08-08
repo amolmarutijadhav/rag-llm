@@ -95,14 +95,16 @@ class ProductionLoggingConfig:
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         self.enable_structured_logging = os.getenv("ENABLE_STRUCTURED_LOGGING", "true").lower() == "true"
         self.enable_external_api_logging = os.getenv("ENABLE_EXTERNAL_API_LOGGING", "true").lower() == "true"
-        self.enable_curl_debugging = os.getenv("ENABLE_CURL_DEBUGGING", "true").lower() == "true"
+        # Default curl debugging to false to avoid logging bodies/headers by default
+        self.enable_curl_debugging = os.getenv("ENABLE_CURL_DEBUGGING", "false").lower() == "true"
         self.log_file_path = os.getenv("LOG_FILE_PATH")
         self.max_log_file_size = int(os.getenv("MAX_LOG_FILE_SIZE_MB", "100")) * 1024 * 1024
         self.log_file_backup_count = int(os.getenv("LOG_FILE_BACKUP_COUNT", "5"))
         
         # Security settings
         self.redact_sensitive_headers = {'authorization', 'api-key', 'x-api-key', 'cookie', 'x-csrf-token'}
-        self.redact_sensitive_fields = {'api_key', 'password', 'token', 'secret', 'key'}
+        # Also redact content/messages fields to protect chat transcripts
+        self.redact_sensitive_fields = {'api_key', 'password', 'token', 'secret', 'key', 'content', 'messages'}
     
     def setup_logging(self):
         """Configure production-ready logging"""

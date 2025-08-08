@@ -14,6 +14,7 @@ from app.core.logging_config import get_logger, get_correlation_id
 import asyncio
 from collections import defaultdict
 from app.core.token_config import token_config_service
+from app.core.config import Config
 
 logger = get_logger(__name__)
 
@@ -533,14 +534,22 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         all_results = []
         for query in enhanced_queries:
             try:
-                # Pass original system message to preserve persona
-                result = await self.rag_service.ask_question(
-                    query, 
-                    top_k=5, 
-                    system_message=original_system_message
+                # Retrieval-only: embeddings + vector search (no LLM generation here)
+                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
+                search_results = await self.rag_service.vector_store_provider.search_vectors(
+                    query_vector, 5, Config.QDRANT_COLLECTION_NAME
                 )
-                if result.get('success') and result.get('sources'):
-                    all_results.extend(result['sources'])
+                # Normalize to common source structure used downstream
+                for item in search_results:
+                    payload = item.get("payload", {})
+                    content = payload.get("content", "")
+                    metadata = payload.get("metadata", {})
+                    source = metadata.get("source", "Unknown")
+                    all_results.append({
+                        "content": content,
+                        "source": source,
+                        "score": item.get("score", 0.0)
+                    })
             except Exception as e:
                 logger.warning(f"Query failed: {query}", extra={
                     'extra_fields': {
@@ -553,6 +562,25 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         
         # Deduplicate and rank results
         unique_results = self._deduplicate_results(all_results)
+        # If retrieval-only produced nothing, fallback to single ask_question to maintain compatibility
+        if not unique_results:
+            try:
+                fallback_result = await self.rag_service.ask_question(
+                    last_user_message,
+                    top_k=5,
+                    system_message=original_system_message
+                )
+                if fallback_result.get('success') and fallback_result.get('sources'):
+                    # Normalize to same shape
+                    for src in fallback_result['sources']:
+                        context_source = {
+                            "content": src.get("content", ""),
+                            "source": src.get("source", "Unknown"),
+                            "score": src.get("score", 0.0)
+                        }
+                        unique_results.append(context_source)
+            except Exception:
+                pass
         # Increase limit from 5 to 10 for better context coverage
         context.rag_results = unique_results[:10]  # Limit to top 10 results
         

@@ -120,12 +120,17 @@ class ContextFilter:
             if doc_categories.intersection(directive_categories):
                 score += 1.0
         
-        # Check relevance_tags match
-        if directive.document_context and doc_context.get("relevance_tags"):
+        # Relevance tags boost only if they overlap document categories/domains when provided
+        if doc_context.get("relevance_tags"):
             doc_tags = set(doc_context["relevance_tags"])
-            directive_context_types = set(directive.document_context)
-            if doc_tags.intersection(directive_context_types):
-                score += 0.5
+            boost = 0.0
+            if directive.document_categories:
+                if doc_tags.intersection(set(directive.document_categories)):
+                    boost += 0.25
+            if directive.content_domains:
+                if doc_tags.intersection(set(directive.content_domains)):
+                    boost += 0.25
+            score += boost
         
         return score
 
