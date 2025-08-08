@@ -146,7 +146,15 @@ logging_config = ProductionLoggingConfig()
 
 def get_logger(name: str) -> logging.Logger:
     """Get logger with correlation ID support"""
-    return logging.getLogger(name)
+    logger = logging.getLogger(name)
+    # Attach redaction filter once
+    try:
+        from app.core.logging_helpers import RedactionFilter
+        if not any(isinstance(f, RedactionFilter) for f in logger.filters):
+            logger.addFilter(RedactionFilter())
+    except Exception:
+        pass
+    return logger
 
 def set_correlation_id(corr_id: str):
     """Set correlation ID for request context"""

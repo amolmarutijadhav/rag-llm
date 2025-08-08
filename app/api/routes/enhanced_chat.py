@@ -11,6 +11,7 @@ from app.domain.services.system_message_parser import SystemMessageParser
 from app.domain.services.rag_service import RAGService
 from app.infrastructure.providers.service_locator import ServiceLocator
 from app.core.logging_config import get_logger, get_correlation_id
+from app.core.logging_helpers import log_extra
 from app.core.config import Config
 from app.api.middleware.security import security_middleware
 
@@ -32,16 +33,16 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
     """Enhanced RAG-enhanced chat completions with conversation awareness and context-aware features"""
     correlation_id = get_correlation_id()
     
-    logger.info("Enhanced chat completion request received", extra={
-        'extra_fields': {
-            'event_type': 'enhanced_chat_completion_request_start',
-            'model': request.model,
-            'messages_count': len(request.messages),
-            'temperature': request.temperature,
-            'max_tokens': request.max_tokens,
-            'correlation_id': correlation_id
-        }
-    })
+    logger.info(
+        "Enhanced chat completion request received",
+        extra=log_extra(
+            'enhanced_chat_completion_request_start',
+            model=request.model,
+            messages_count=len(request.messages),
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
+    )
     
     try:
         # Basic per-IP rate limiting to mitigate abuse
@@ -53,13 +54,10 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
             pass
         # Validate request
         if not request.messages or len(request.messages) == 0:
-            logger.warning("Enhanced chat completion validation failed - no messages", extra={
-                'extra_fields': {
-                    'event_type': 'enhanced_chat_completion_validation_failure',
-                    'error': 'Messages cannot be empty',
-                    'correlation_id': correlation_id
-                }
-            })
+            logger.warning(
+                "Enhanced chat completion validation failed - no messages",
+                extra=log_extra('enhanced_chat_completion_validation_failure', error='Messages cannot be empty')
+            )
             raise HTTPException(status_code=400, detail="Messages cannot be empty")
         
         # Extract system message and last user message
@@ -84,18 +82,18 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
             })
             raise HTTPException(status_code=400, detail="No user message found")
         
-        logger.info("Enhanced chat completion validation passed", extra={
-            'extra_fields': {
-                'event_type': 'enhanced_chat_completion_validation_success',
-                'model': request.model,
-                'messages_count': len(request.messages),
-                'last_user_message_length': len(last_user_message),
-                'system_message_length': len(system_message),
-                'persona_detected': bool(original_persona),
-                'persona_length': len(original_persona),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info(
+            "Enhanced chat completion validation passed",
+            extra=log_extra(
+                'enhanced_chat_completion_validation_success',
+                model=request.model,
+                messages_count=len(request.messages),
+                last_user_message_length=len(last_user_message),
+                system_message_length=len(system_message),
+                persona_detected=bool(original_persona),
+                persona_length=len(original_persona),
+            )
+        )
         
         # Check if system message contains context-aware directives
         has_context_directives = any(keyword in system_message.upper() for keyword in [
@@ -105,15 +103,15 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
         
         if has_context_directives:
             # Use context-aware RAG service
-            logger.info("Using context-aware RAG processing", extra={
-                'extra_fields': {
-                    'event_type': 'context_aware_rag_processing_start',
-                    'model': request.model,
-                    'last_user_message_length': len(last_user_message),
-                    'system_message_length': len(system_message),
-                    'correlation_id': correlation_id
-                }
-            })
+            logger.info(
+                "Using context-aware RAG processing",
+                extra=log_extra(
+                    'context_aware_rag_processing_start',
+                    model=request.model,
+                    last_user_message_length=len(last_user_message),
+                    system_message_length=len(system_message),
+                )
+            )
             
             # Process with context-aware RAG
             rag_result = await context_aware_rag_service.ask_question_with_context(
@@ -122,48 +120,48 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
                 top_k=3
             )
             
-            logger.info("Context-aware RAG processing completed", extra={
-                'extra_fields': {
-                    'event_type': 'context_aware_rag_processing_complete',
-                    'model': request.model,
-                    'rag_success': rag_result.get('success', False),
-                    'response_mode': rag_result.get('response_mode', 'unknown'),
-                    'context_used': rag_result.get('context_used', 'unknown'),
-                    'correlation_id': correlation_id
-                }
-            })
+            logger.info(
+                "Context-aware RAG processing completed",
+                extra=log_extra(
+                    'context_aware_rag_processing_complete',
+                    model=request.model,
+                    rag_success=rag_result.get('success', False),
+                    response_mode=rag_result.get('response_mode', 'unknown'),
+                    context_used=rag_result.get('context_used', 'unknown'),
+                )
+            )
             
             # Prepare the response
             if rag_result.get('success', False):
                 content = rag_result['answer']
                 sources = rag_result.get('sources', [])
                 
-                logger.info("Using context-aware RAG answer", extra={
-                    'extra_fields': {
-                        'event_type': 'context_aware_rag_answer_used',
-                        'model': request.model,
-                        'answer_length': len(content),
-                        'sources_count': len(sources),
-                        'response_mode': rag_result.get('response_mode', 'unknown'),
-                        'context_used': rag_result.get('context_used', 'unknown'),
-                        'correlation_id': correlation_id
-                    }
-                })
+                logger.info(
+                    "Using context-aware RAG answer",
+                    extra=log_extra(
+                        'context_aware_rag_answer_used',
+                        model=request.model,
+                        answer_length=len(content),
+                        sources_count=len(sources),
+                        response_mode=rag_result.get('response_mode', 'unknown'),
+                        context_used=rag_result.get('context_used', 'unknown'),
+                    )
+                )
             else:
                 # Fallback response (avoid leaking internal error details)
                 content = "I'm sorry, I couldn't process your request."
                 sources = []
                 
-                logger.warning("Using fallback answer for context-aware chat completion", extra={
-                    'extra_fields': {
-                        'event_type': 'context_aware_chat_completion_fallback_used',
-                        'model': request.model,
-                        'rag_error': rag_result.get('answer', 'Unknown error'),
-                        'response_mode': rag_result.get('response_mode', 'unknown'),
-                        'persona_detected': bool(original_persona),
-                        'correlation_id': correlation_id
-                    }
-                })
+                logger.warning(
+                    "Using fallback answer for context-aware chat completion",
+                    extra=log_extra(
+                        'context_aware_chat_completion_fallback_used',
+                        model=request.model,
+                        rag_error=rag_result.get('answer', 'Unknown error'),
+                        response_mode=rag_result.get('response_mode', 'unknown'),
+                        persona_detected=bool(original_persona),
+                    )
+                )
             
             # Create chat completion response
             response = ChatCompletionResponse(
@@ -208,52 +206,46 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
             
         else:
             # Use existing enhanced service (backward compatibility)
-            logger.info("Using existing enhanced service (no context directives)", extra={
-                'extra_fields': {
-                    'event_type': 'existing_enhanced_service_used',
-                    'model': request.model,
-                    'correlation_id': correlation_id
-                }
-            })
+            logger.info(
+                "Using existing enhanced service (no context directives)",
+                extra=log_extra('existing_enhanced_service_used', model=request.model)
+            )
             
             response = await enhanced_service.process_request(request)
         
         # Log summary only (avoid full sources/metadata in info logs)
-        logger.info("Enhanced chat completion response generated successfully", extra={
-            'extra_fields': {
-                'event_type': 'enhanced_chat_completion_response_generated',
-                'model': request.model,
-                'response_id': response.id,
-                'completion_tokens': response.usage.get('completion_tokens', 0) if response.usage else 0,
-                'total_tokens': response.usage.get('total_tokens', 0) if response.usage else 0,
-                'sources_count': len(response.sources) if response.sources else 0,
-                'persona_preserved': response.metadata.get('persona_preserved', False) if hasattr(response, 'metadata') and response.metadata else False,
-                'rag_context_added': response.metadata.get('rag_context_added', False) if hasattr(response, 'metadata') and response.metadata else False,
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info(
+            "Enhanced chat completion response generated successfully",
+            extra=log_extra(
+                'enhanced_chat_completion_response_generated',
+                model=request.model,
+                response_id=response.id,
+                completion_tokens=response.usage.get('completion_tokens', 0) if response.usage else 0,
+                total_tokens=response.usage.get('total_tokens', 0) if response.usage else 0,
+                sources_count=len(response.sources) if response.sources else 0,
+                persona_preserved=response.metadata.get('persona_preserved', False) if hasattr(response, 'metadata') and response.metadata else False,
+                rag_context_added=response.metadata.get('rag_context_added', False) if hasattr(response, 'metadata') and response.metadata else False,
+            )
+        )
         
         return response
         
     except HTTPException:
-        logger.error("Enhanced chat completion failed with HTTP exception", extra={
-            'extra_fields': {
-                'event_type': 'enhanced_chat_completion_http_error',
-                'model': request.model if hasattr(request, 'model') else 'unknown',
-                'correlation_id': correlation_id
-            }
-        })
+        logger.error(
+            "Enhanced chat completion failed with HTTP exception",
+            extra=log_extra('enhanced_chat_completion_http_error', model=getattr(request, 'model', 'unknown'))
+        )
         raise
     except Exception as e:
-        logger.error("Enhanced chat completion failed with unexpected error", extra={
-            'extra_fields': {
-                'event_type': 'enhanced_chat_completion_error',
-                'model': request.model if hasattr(request, 'model') else 'unknown',
-                'error': str(e),
-                'error_type': type(e).__name__,
-                'correlation_id': correlation_id
-            }
-        })
+        logger.error(
+            "Enhanced chat completion failed with unexpected error",
+            extra=log_extra(
+                'enhanced_chat_completion_error',
+                model=getattr(request, 'model', 'unknown'),
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+        )
         # Return a generic error message expected by unit tests
         raise HTTPException(status_code=500, detail="Service error")
 
@@ -262,12 +254,7 @@ async def get_available_strategies():
     """Get available conversation analysis strategies"""
     correlation_id = get_correlation_id()
     
-    logger.info("Strategies request received", extra={
-        'extra_fields': {
-            'event_type': 'strategies_request',
-            'correlation_id': correlation_id
-        }
-    })
+    logger.info("Strategies request received", extra=log_extra('strategies_request'))
     
     try:
         strategies = [
@@ -283,13 +270,7 @@ async def get_available_strategies():
             }
         ]
         
-        logger.info("Strategies request completed", extra={
-            'extra_fields': {
-                'event_type': 'strategies_response',
-                'strategies_count': len(strategies),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info("Strategies request completed", extra=log_extra('strategies_response', strategies_count=len(strategies)))
         
         return {
             "strategies": strategies,
@@ -311,12 +292,7 @@ async def get_available_plugins():
     """Get available processing plugins"""
     correlation_id = get_correlation_id()
     
-    logger.info("Plugins request received", extra={
-        'extra_fields': {
-            'event_type': 'plugins_request',
-            'correlation_id': correlation_id
-        }
-    })
+    logger.info("Plugins request received", extra=log_extra('plugins_request'))
     
     try:
         plugins = [
@@ -340,13 +316,7 @@ async def get_available_plugins():
             }
         ]
         
-        logger.info("Plugins request completed", extra={
-            'extra_fields': {
-                'event_type': 'plugins_response',
-                'plugins_count': len(plugins),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info("Plugins request completed", extra=log_extra('plugins_response', plugins_count=len(plugins)))
         
         return {
             "plugins": plugins,
@@ -370,12 +340,7 @@ async def get_context_options():
     """Get available context options for document upload"""
     correlation_id = get_correlation_id()
     
-    logger.info("Context options request received", extra={
-        'extra_fields': {
-            'event_type': 'context_options_request',
-            'correlation_id': correlation_id
-        }
-    })
+    logger.info("Context options request received", extra=log_extra('context_options_request'))
     
     try:
         context_options = {
@@ -403,12 +368,7 @@ async def get_context_options():
             ]
         }
         
-        logger.info("Context options retrieved successfully", extra={
-            'extra_fields': {
-                'event_type': 'context_options_retrieved',
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info("Context options retrieved successfully", extra=log_extra('context_options_retrieved'))
         
         return {
             "success": True,
@@ -431,22 +391,12 @@ async def get_context_aware_stats():
     """Get statistics for context-aware documents"""
     correlation_id = get_correlation_id()
     
-    logger.info("Context-aware stats request received", extra={
-        'extra_fields': {
-            'event_type': 'context_aware_stats_request',
-            'correlation_id': correlation_id
-        }
-    })
+    logger.info("Context-aware stats request received", extra=log_extra('context_aware_stats_request'))
     
     try:
         stats = context_aware_rag_service.get_stats()
         
-        logger.info("Context-aware stats retrieved successfully", extra={
-            'extra_fields': {
-                'event_type': 'context_aware_stats_retrieved',
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info("Context-aware stats retrieved successfully", extra=log_extra('context_aware_stats_retrieved'))
         
         return stats
         

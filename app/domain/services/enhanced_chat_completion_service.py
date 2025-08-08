@@ -11,6 +11,7 @@ from app.domain.models.requests import ChatCompletionRequest, ChatMessage
 from app.domain.models.responses import ChatCompletionResponse
 from app.domain.services.rag_service import RAGService
 from app.core.logging_config import get_logger, get_correlation_id
+from app.core.logging_helpers import log_extra
 import asyncio
 from collections import defaultdict
 from app.core.token_config import token_config_service
@@ -69,14 +70,10 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
         """Analyze conversation to extract topics and context"""
         correlation_id = get_correlation_id()
         
-        logger.debug("Starting conversation analysis", extra={
-            'extra_fields': {
-                'event_type': 'topic_tracking_strategy_analysis_start',
-                'strategy': self.get_strategy_name(),
-                'messages_count': len(messages),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.debug(
+            "Starting conversation analysis",
+            extra=log_extra('topic_tracking_strategy_analysis_start', strategy=self.get_strategy_name(), messages_count=len(messages))
+        )
         
         topics = []
         entities = []
@@ -109,17 +106,17 @@ class TopicTrackingStrategy(ConversationAnalysisStrategy):
             "persona_info": persona_info
         }
         
-        logger.debug("Conversation analysis completed", extra={
-            'extra_fields': {
-                'event_type': 'topic_tracking_strategy_analysis_complete',
-                'strategy': self.get_strategy_name(),
-                'topics_count': len(result['topics']),
-                'entities_count': len(result['entities']),
-                'context_clues_count': len(result['context_clues']),
-                'persona_detected': bool(persona_info),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.debug(
+            "Conversation analysis completed",
+            extra=log_extra(
+                'topic_tracking_strategy_analysis_complete',
+                strategy=self.get_strategy_name(),
+                topics_count=len(result['topics']),
+                entities_count=len(result['entities']),
+                context_clues_count=len(result['context_clues']),
+                persona_detected=bool(persona_info),
+            )
+        )
         
         return result
     

@@ -13,6 +13,7 @@ from app.domain.models.requests import (
 from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider, VectorStoreProvider
 from app.core.config import Config
 from app.core.logging_config import get_logger, get_correlation_id
+from app.core.logging_helpers import log_extra
 
 logger = get_logger(__name__)
 
@@ -30,29 +31,26 @@ class ContextFilter:
         """
         correlation_id = get_correlation_id()
         
-        logger.debug("Starting document context filtering", extra={
-            'extra_fields': {
-                'event_type': 'context_filtering_start',
-                'total_documents': len(documents),
-                'directive_context': directive.document_context,
-                'directive_domains': directive.content_domains,
-                'directive_categories': directive.document_categories,
-                'correlation_id': correlation_id
-            }
-        })
+        logger.debug(
+            "Starting document context filtering",
+            extra=log_extra(
+                'context_filtering_start',
+                total_documents=len(documents),
+                directive_context=directive.document_context,
+                directive_domains=directive.content_domains,
+                directive_categories=directive.document_categories,
+            )
+        )
         
         if not documents:
             return []
         
         # If no context filters specified, return all documents
         if not any([directive.document_context, directive.content_domains, directive.document_categories]):
-            logger.debug("No context filters specified, returning all documents", extra={
-                'extra_fields': {
-                    'event_type': 'context_filtering_no_filters',
-                    'documents_returned': len(documents),
-                    'correlation_id': correlation_id
-                }
-            })
+            logger.debug(
+                "No context filters specified, returning all documents",
+                extra=log_extra('context_filtering_no_filters', documents_returned=len(documents))
+            )
             return documents
         
         filtered_documents = []
@@ -76,14 +74,10 @@ class ContextFilter:
         # Sort by context match score (highest first)
         filtered_documents.sort(key=lambda x: x.get("context_match_score", 0), reverse=True)
         
-        logger.info("Document context filtering completed", extra={
-            'extra_fields': {
-                'event_type': 'context_filtering_complete',
-                'original_documents': len(documents),
-                'filtered_documents': len(filtered_documents),
-                'correlation_id': correlation_id
-            }
-        })
+        logger.info(
+            "Document context filtering completed",
+            extra=log_extra('context_filtering_complete', original_documents=len(documents), filtered_documents=len(filtered_documents))
+        )
         
         return filtered_documents
     
