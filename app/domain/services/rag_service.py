@@ -529,7 +529,7 @@ class RAGService:
                 "message": f"Error getting statistics: {str(e)}"
             }
     
-    def clear_knowledge_base(self) -> Dict[str, Any]:
+    async def clear_knowledge_base(self) -> Dict[str, Any]:
         """Clear all documents from the knowledge base with enhanced logging"""
         correlation_id = get_correlation_id()
         
@@ -542,7 +542,7 @@ class RAGService:
         
         try:
             # Get stats before clearing using vector store
-            stats = self.vector_store.get_collection_stats()
+            stats = await self.vector_store.get_collection_stats()
             total_documents = stats.get('total_documents', 0)
             
             # Clear all points from the collection using vector store

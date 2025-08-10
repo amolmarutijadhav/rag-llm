@@ -212,27 +212,34 @@ class TestRAGService:
         assert "chunk_overlap" in result
 
     @pytest.mark.asyncio
-    async def test_get_stats_vector_store_error(self, rag_service, mock_vector_store_provider):
+    async def test_get_stats_vector_store_error(self, rag_service, mock_vector_store):
         """Test stats retrieval when vector store fails."""
-        mock_vector_store_provider.get_collection_stats.side_effect = Exception("Stats error")
+        mock_vector_store.get_collection_stats.side_effect = Exception("Stats error")
         
         result = await rag_service.get_stats()
         
         assert result["success"] == False
         assert "Error getting statistics" in result["message"]
 
-    def test_clear_knowledge_base_success(self, rag_service, mock_vector_store_provider):
+    @pytest.mark.asyncio
+    async def test_clear_knowledge_base_success(self, rag_service, mock_vector_store):
         """Test successful knowledge base clearing."""
-        result = rag_service.clear_knowledge_base()
+        mock_vector_store.get_collection_stats.return_value = {"total_documents": 5}
+        mock_vector_store.clear_all_points.return_value = True
+        
+        result = await rag_service.clear_knowledge_base()
         
         assert result["success"] == True
         assert "cleared successfully" in result["message"]
+        assert result["documents_cleared"] == 5
 
-    def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
+    @pytest.mark.asyncio
+    async def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
         """Test knowledge base clearing when it fails."""
+        mock_vector_store.get_collection_stats.return_value = {"total_documents": 5}
         mock_vector_store.clear_all_points.return_value = False
         
-        result = rag_service.clear_knowledge_base()
+        result = await rag_service.clear_knowledge_base()
         
         assert result["success"] == False
         assert "Failed to clear" in result["message"]

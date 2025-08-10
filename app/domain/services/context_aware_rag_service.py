@@ -1048,5 +1048,5 @@ class ContextAwareRAGService:
     async def get_stats(self) -> Dict[str, Any]:
         return await self.rag_service.get_stats()
     
-    def clear_knowledge_base(self) -> Dict[str, Any]:
-        return self.rag_service.clear_knowledge_base() 
+    async def clear_knowledge_base(self) -> Dict[str, Any]:
+        return await self.rag_service.clear_knowledge_base() 

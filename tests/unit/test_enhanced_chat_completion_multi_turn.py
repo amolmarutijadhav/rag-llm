@@ -232,41 +232,36 @@ class TestEnhancedChatCompletionService:
     @pytest.mark.asyncio
     async def test_parallel_query_processing(self, service, sample_request):
         """Test parallel query processing functionality"""
-        # Disable caching for this test to ensure actual calls are made
-        original_cache_enabled = service.cache_enabled
-        service.cache_enabled = False
+        # Modify the request to use unique queries that won't be cached
+        unique_request = sample_request
+        unique_request.messages[-1].content = f"Can you help me draft the executive summary? {__import__('time').time()}"
         
-        try:
-            # Mock the RAG service to track parallel execution
-            call_count = 0
-            original_get_embeddings = service.rag_service.embedding_provider.get_embeddings
-            original_search_vectors = service.rag_service.vector_store_provider.search_vectors
-            
-            async def mock_get_embeddings(queries):
-                nonlocal call_count
-                call_count += 1
-                return await original_get_embeddings(queries)
-            
-            async def mock_search_vectors(vector, top_k, collection):
-                nonlocal call_count
-                call_count += 1
-                return await original_search_vectors(vector, top_k, collection)
-            
-            service.rag_service.embedding_provider.get_embeddings = mock_get_embeddings
-            service.rag_service.vector_store_provider.search_vectors = mock_search_vectors
-            
-            response = await service.process_request(sample_request)
-            
-            # Should have made multiple calls (indicating parallel processing)
-            assert call_count > 2  # At least 2 calls (embedding + search) for multiple queries
-            
-            # Restore original methods
-            service.rag_service.embedding_provider.get_embeddings = original_get_embeddings
-            service.rag_service.vector_store_provider.search_vectors = original_search_vectors
-            
-        finally:
-            # Restore cache setting
-            service.cache_enabled = original_cache_enabled
+        # Mock the RAG service to track parallel execution
+        call_count = 0
+        original_get_embeddings = service.rag_service.embedding_provider.get_embeddings
+        original_search_vectors = service.rag_service.vector_store_provider.search_vectors
+        
+        async def mock_get_embeddings(queries):
+            nonlocal call_count
+            call_count += 1
+            return await original_get_embeddings(queries)
+        
+        async def mock_search_vectors(vector, top_k, collection):
+            nonlocal call_count
+            call_count += 1
+            return await original_search_vectors(vector, top_k, collection)
+        
+        service.rag_service.embedding_provider.get_embeddings = mock_get_embeddings
+        service.rag_service.vector_store_provider.search_vectors = mock_search_vectors
+        
+        response = await service.process_request(unique_request)
+        
+        # Should have made multiple calls (indicating parallel processing)
+        assert call_count > 2  # At least 2 calls (embedding + search) for multiple queries
+        
+        # Restore original methods
+        service.rag_service.embedding_provider.get_embeddings = original_get_embeddings
+        service.rag_service.vector_store_provider.search_vectors = original_search_vectors
 
     @pytest.mark.asyncio
     async def test_parallel_vs_sequential_performance(self, service, sample_request):
