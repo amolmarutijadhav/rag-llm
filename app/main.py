@@ -171,8 +171,27 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("Application shutting down", extra={
+    logger.info("Application shutting down, cleaning up resources", extra={
         'extra_fields': {
-            'event_type': 'application_shutdown'
+            'event_type': 'application_shutdown_start'
         }
-    }) 
+    })
+    
+    try:
+        # Cleanup service locator and connection pools
+        from app.infrastructure.providers.service_locator import cleanup_service_locator
+        await cleanup_service_locator()
+        
+        logger.info("Application shutdown completed successfully", extra={
+            'extra_fields': {
+                'event_type': 'application_shutdown_success'
+            }
+        })
+    except Exception as e:
+        logger.error("Error during application shutdown cleanup", extra={
+            'extra_fields': {
+                'event_type': 'application_shutdown_error',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+        }) 

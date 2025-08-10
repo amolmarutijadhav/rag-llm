@@ -4,12 +4,13 @@ This directory contains performance analysis and documentation for the Enhanced 
 
 ## Documents
 
-### `PERFORMANCE_ANALYSIS.md`
-Comprehensive performance analysis including:
-- Executive summary of performance impact
-- Detailed metrics and benchmarks
-- Cost analysis and optimization recommendations
-- Performance targets and monitoring guidelines
+### Core Performance Analysis
+- **[API_ENDPOINT_PERFORMANCE_ANALYSIS.md](./API_ENDPOINT_PERFORMANCE_ANALYSIS.md)** - Top 3 bottlenecks and improvement recommendations
+- **[PARALLEL_PROCESSING_PERFORMANCE.md](./PARALLEL_PROCESSING_PERFORMANCE.md)** - Parallel vs sequential processing comparison
+- **[CACHE_PERFORMANCE_ANALYSIS.md](./CACHE_PERFORMANCE_ANALYSIS.md)** - In-memory caching performance impact analysis
+
+### Legacy Documentation
+- **[PERFORMANCE_ANALYSIS.md](./PERFORMANCE_ANALYSIS.md)** - Original comprehensive performance analysis
 
 ## Key Findings
 

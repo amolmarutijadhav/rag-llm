@@ -1100,11 +1100,58 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         async def process_single_query(query: str) -> List[Dict[str, Any]]:
             """Process a single query with embedding and vector search"""
             try:
-                # Retrieval-only: embeddings + vector search (no LLM generation here)
-                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
-                search_results = await self.rag_service.vector_store_provider.search_vectors(
+                # Check cache for embedding
+                from app.core.cache_service import cache_service
+                cached_embedding = await cache_service.get_embedding(query)
+                
+                if cached_embedding:
+                    query_vector = cached_embedding
+                    logger.debug(f"Using cached embedding for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_embedding_hit',
+                            'query_length': len(query)
+                        }
+                    })
+                else:
+                    # Get embedding from API
+                    query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
+                    # Cache the embedding
+                    await cache_service.set_embedding(query, query_vector)
+                    logger.debug(f"Cached new embedding for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_embedding_miss',
+                            'query_length': len(query)
+                        }
+                    })
+                
+                # Check cache for search results
+                cached_search_results = await cache_service.get_search_results(
                     query_vector, 5, Config.QDRANT_COLLECTION_NAME
                 )
+                
+                if cached_search_results:
+                    search_results = cached_search_results
+                    logger.debug(f"Using cached search results for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_search_hit',
+                            'results_count': len(search_results)
+                        }
+                    })
+                else:
+                    # Get search results from API
+                    search_results = await self.rag_service.vector_store_provider.search_vectors(
+                        query_vector, 5, Config.QDRANT_COLLECTION_NAME
+                    )
+                    # Cache the search results
+                    await cache_service.set_search_results(
+                        query_vector, 5, Config.QDRANT_COLLECTION_NAME, search_results
+                    )
+                    logger.debug(f"Cached new search results for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_search_miss',
+                            'results_count': len(search_results)
+                        }
+                    })
                 
                 # Normalize to common source structure used downstream
                 normalized_results = []
@@ -1169,11 +1216,58 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         
         for query in enhanced_queries:
             try:
-                # Retrieval-only: embeddings + vector search (no LLM generation here)
-                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
-                search_results = await self.rag_service.vector_store_provider.search_vectors(
+                # Check cache for embedding
+                from app.core.cache_service import cache_service
+                cached_embedding = await cache_service.get_embedding(query)
+                
+                if cached_embedding:
+                    query_vector = cached_embedding
+                    logger.debug(f"Using cached embedding for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_embedding_hit_sequential',
+                            'query_length': len(query)
+                        }
+                    })
+                else:
+                    # Get embedding from API
+                    query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
+                    # Cache the embedding
+                    await cache_service.set_embedding(query, query_vector)
+                    logger.debug(f"Cached new embedding for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_embedding_miss_sequential',
+                            'query_length': len(query)
+                        }
+                    })
+                
+                # Check cache for search results
+                cached_search_results = await cache_service.get_search_results(
                     query_vector, 5, Config.QDRANT_COLLECTION_NAME
                 )
+                
+                if cached_search_results:
+                    search_results = cached_search_results
+                    logger.debug(f"Using cached search results for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_search_hit_sequential',
+                            'results_count': len(search_results)
+                        }
+                    })
+                else:
+                    # Get search results from API
+                    search_results = await self.rag_service.vector_store_provider.search_vectors(
+                        query_vector, 5, Config.QDRANT_COLLECTION_NAME
+                    )
+                    # Cache the search results
+                    await cache_service.set_search_results(
+                        query_vector, 5, Config.QDRANT_COLLECTION_NAME, search_results
+                    )
+                    logger.debug(f"Cached new search results for query: {query[:50]}...", extra={
+                        'extra_fields': {
+                            'event_type': 'cache_search_miss_sequential',
+                            'results_count': len(search_results)
+                        }
+                    })
                 # Normalize to common source structure used downstream
                 for item in search_results:
                     payload = item.get("payload", {})

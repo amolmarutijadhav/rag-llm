@@ -183,15 +183,16 @@ class TestServiceLocator:
         assert service_locator._initialized
         assert service_locator._providers["embedding"] == mock_provider
 
-    def test_reset(self):
-        """Test resetting service locator"""
+    @pytest.mark.asyncio
+    async def test_reset(self):
+        """Test service locator reset"""
         service_locator = ServiceLocator()
         service_locator.initialize_providers()
         
         assert service_locator._initialized
         assert len(service_locator._providers) > 0
         
-        service_locator.reset()
+        await service_locator.reset()
         
         assert not service_locator._initialized
         assert len(service_locator._providers) == 0
