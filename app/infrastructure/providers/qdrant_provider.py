@@ -262,7 +262,7 @@ class QdrantVectorStoreProvider(EnhancedBaseProvider, VectorStoreProvider):
             })
             raise Exception(f"Qdrant vector search API error: {str(e)}")
     
-    def get_collection_stats(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_stats(self, collection_name: str) -> Dict[str, Any]:
         """
         Get statistics about a collection with enhanced logging.
         
@@ -284,7 +284,7 @@ class QdrantVectorStoreProvider(EnhancedBaseProvider, VectorStoreProvider):
             collection_url = self._get_collection_url(collection_name)
             headers = self._get_headers(self.api_key)
             
-            response = self._make_sync_request("GET", collection_url, headers)
+            response = await self._make_request("GET", collection_url, headers)
             data = response.json()
             
             stats = {

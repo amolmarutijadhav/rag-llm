@@ -311,7 +311,7 @@ async def get_context_options():
 @router.get("/stats")
 async def get_context_aware_stats():
     """Get statistics for context-aware documents"""
-    return context_aware_rag_service.get_stats()
+    return await context_aware_rag_service.get_stats()
 
 @router.delete("/clear")
 async def clear_context_aware_knowledge_base():

@@ -1045,8 +1045,8 @@ class ContextAwareRAGService:
             }
     
     # Delegate other methods to the wrapped RAG service
-    def get_stats(self) -> Dict[str, Any]:
-        return self.rag_service.get_stats()
+    async def get_stats(self) -> Dict[str, Any]:
+        return await self.rag_service.get_stats()
     
     def clear_knowledge_base(self) -> Dict[str, Any]:
         return self.rag_service.clear_knowledge_base() 

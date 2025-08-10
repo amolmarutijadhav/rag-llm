@@ -1,0 +1,66 @@
+{
+  "timestamp": "2025-08-10T23:07:30.306873",
+  "test_configuration": {
+    "request_count": 20,
+    "concurrent_requests": 5,
+    "test_url": "https://httpbin.org/delay/0.1"
+  },
+  "pooling_metrics": {
+    "approach": "With Connection Pooling",
+    "total_time": 5.18297815322876,
+    "request_count": 20,
+    "avg_request_time": 0.8471908688545227,
+    "min_request_time": 0.39963197708129883,
+    "max_request_time": 2.589909315109253,
+    "median_request_time": 0.5082645416259766,
+    "std_deviation": 0.6243252852145104,
+    "connection_creation_count": 1,
+    "connection_reuse_count": 19
+  },
+  "non_pooling_metrics": {
+    "approach": "Without Connection Pooling",
+    "total_time": 7.3635945320129395,
+    "request_count": 20,
+    "avg_request_time": 1.6117795944213866,
+    "min_request_time": 1.4498379230499268,
+    "max_request_time": 2.3995018005371094,
+    "median_request_time": 1.530115008354187,
+    "std_deviation": 0.23025988965837593,
+    "connection_creation_count": 20,
+    "connection_reuse_count": 0
+  },
+  "analysis": {
+    "total_time_improvement": {
+      "absolute": 2.1806163787841797,
+      "percentage": 29.61347707704485
+    },
+    "avg_request_time_improvement": {
+      "absolute": 0.764588725566864,
+      "percentage": 47.437548422453126
+    },
+    "connection_efficiency": {
+      "creation_reduction": 19,
+      "reuse_benefit": 19,
+      "efficiency_ratio": 0.95
+    },
+    "throughput_improvement": {
+      "requests_per_second_pooling": 3.858785317769651,
+      "requests_per_second_non_pooling": 2.7160648122395634,
+      "improvement_factor": 1.4207265233070208
+    }
+  },
+  "provider_results": {
+    "embedding_provider": {
+      "approach": "Embedding Provider (With Pooling)",
+      "total_time": 11.063981294631958,
+      "request_count": 10,
+      "avg_request_time": 1.1063981294631957,
+      "min_request_time": 0.8002231121063232,
+      "max_request_time": 1.6149275302886963,
+      "median_request_time": 0.9669474363327026,
+      "std_deviation": 0.2808598068255313,
+      "connection_creation_count": 1,
+      "connection_reuse_count": 9
+    }
+  }
+}

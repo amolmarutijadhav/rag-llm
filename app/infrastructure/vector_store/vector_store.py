@@ -117,6 +117,32 @@ class VectorStore:
                 }
             })
             
+            # Ensure collection exists before inserting vectors
+            logger.debug("Ensuring collection exists", extra={
+                'extra_fields': {
+                    'event_type': 'vector_store_collection_ensure_start',
+                    'collection_name': self.collection_name,
+                    'correlation_id': correlation_id
+                }
+            })
+            
+            # Create collection if it doesn't exist
+            collection_created = await self.vector_store_provider.create_collection_if_not_exists(
+                self.collection_name, 
+                len(embeddings[0]) if embeddings else 1536, 
+                "Cosine"
+            )
+            
+            if not collection_created:
+                logger.error("Failed to create or verify collection", extra={
+                    'extra_fields': {
+                        'event_type': 'vector_store_collection_creation_failed',
+                        'collection_name': self.collection_name,
+                        'correlation_id': correlation_id
+                    }
+                })
+                return False
+            
             # Insert vectors using plugin architecture
             logger.debug("Inserting vectors into vector store", extra={
                 'extra_fields': {
@@ -319,7 +345,7 @@ class VectorStore:
             })
             return []
     
-    def get_collection_stats(self) -> Dict[str, Any]:
+    async def get_collection_stats(self) -> Dict[str, Any]:
         """Get collection statistics with enhanced logging"""
         correlation_id = get_correlation_id()
         
@@ -332,7 +358,7 @@ class VectorStore:
         })
         
         try:
-            stats = self.vector_store_provider.get_collection_stats(self.collection_name)
+            stats = await self.vector_store_provider.get_collection_stats(self.collection_name)
             
             logger.info("Collection statistics retrieved successfully", extra={
                 'extra_fields': {

@@ -477,7 +477,7 @@ class RAGService:
                 "question": question
             }
     
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """Get collection statistics with enhanced logging"""
         correlation_id = get_correlation_id()
         
@@ -489,7 +489,8 @@ class RAGService:
         })
         
         try:
-            stats = self.vector_store_provider.get_collection_stats(Config.QDRANT_COLLECTION_NAME)
+            # Use vector store's stats method to ensure consistency
+            stats = await self.vector_store.get_collection_stats()
             
             logger.info("Collection statistics retrieved successfully", extra={
                 'extra_fields': {
@@ -540,12 +541,12 @@ class RAGService:
         })
         
         try:
-            # Get stats before clearing
-            stats = self.vector_store_provider.get_collection_stats(Config.QDRANT_COLLECTION_NAME)
+            # Get stats before clearing using vector store
+            stats = self.vector_store.get_collection_stats()
             total_documents = stats.get('total_documents', 0)
             
-            # Clear all points from the collection
-            success = self.vector_store_provider.delete_all_points(Config.QDRANT_COLLECTION_NAME)
+            # Clear all points from the collection using vector store
+            success = self.vector_store.clear_all_points()
             
             if success:
                 logger.warning("Knowledge base cleared successfully", extra={
