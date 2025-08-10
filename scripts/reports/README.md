@@ -6,13 +6,26 @@ This directory contains organized test analysis reports and summaries generated 
 
 ```
 scripts/reports/
-├── integration/          # Integration test results and analysis
-├── hanging_tests/        # Hanging test analysis and fixes
-├── fixes/               # Test fixes and summaries
-└── README.md           # This file
+├── performance/         # Performance benchmarking and comparison reports
+├── persona_tests/       # Persona preservation test results
+├── integration/         # Integration test results and analysis
+├── hanging_tests/       # Hanging test analysis and fixes
+├── fixes/              # Test fixes and summaries
+└── README.md          # This file
 ```
 
 ## Report Categories
+
+### Performance Reports
+**Location**: `performance/`
+- **performance_benchmark_*.json**: Comprehensive performance benchmarking results
+- **performance_comparison_*.json**: Single vs multi-query performance comparison
+- **parallel_vs_sequential_*.json**: Parallel vs sequential processing comparison
+
+### Persona Tests Reports
+**Location**: `persona_tests/`
+- **persona_preservation_test_results_*.json**: Persona preservation test results
+- **persona_balance_test_results_*.json**: Persona vs RAG balance test results
 
 ### Integration Reports
 **Location**: `integration/`
@@ -34,6 +47,8 @@ scripts/reports/
 ## File Naming Convention
 
 All report files follow descriptive naming conventions:
+- **Performance**: `performance_*.json`, `parallel_vs_sequential_*.json`
+- **Persona Tests**: `persona_preservation_test_results_*.json`
 - **Integration**: `*_integration_test_results.md`
 - **Hanging Tests**: `hanging_test_*.md`
 - **Fixes**: `test_*_summary.md`, `*_tests_analysis.md`
@@ -54,6 +69,8 @@ These reports are generated automatically by test scripts and provide:
 
 ## Related Scripts
 
+- `benchmarks/performance_*.py`: Generate performance reports
+- `test_persona_preservation.py`: Generates persona test reports
 - `run_integration_tests.py`: Generates integration reports
 - `test_analysis.py`: Generates analysis reports
 - Various test scripts: Generate specific category reports 

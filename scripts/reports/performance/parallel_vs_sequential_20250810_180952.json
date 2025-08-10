@@ -1,0 +1,91 @@
+{
+  "parallel": [
+    {
+      "mode": "parallel",
+      "total_time": 15.079941987991333,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0026102364063263,
+      "avg_vector_search_time": 0.9553523659706116
+    },
+    {
+      "mode": "parallel",
+      "total_time": 6.716521263122559,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0330637693405151,
+      "avg_vector_search_time": 0.9707545638084412
+    },
+    {
+      "mode": "parallel",
+      "total_time": 11.364415407180786,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0424280762672424,
+      "avg_vector_search_time": 0.9767647087574005
+    }
+  ],
+  "sequential": [
+    {
+      "mode": "sequential",
+      "total_time": 23.61100935935974,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 0.851408064365387,
+      "avg_vector_search_time": 1.1626924574375153
+    },
+    {
+      "mode": "sequential",
+      "total_time": 18.41235876083374,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 0.9163358211517334,
+      "avg_vector_search_time": 0.9853094518184662
+    },
+    {
+      "mode": "sequential",
+      "total_time": 28.492544651031494,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 0.8872087299823761,
+      "avg_vector_search_time": 1.0810770988464355
+    }
+  ],
+  "analysis": {
+    "parallel": {
+      "avg_total_time": 11.053626219431559,
+      "avg_embedding_calls": 8.0,
+      "avg_vector_calls": 8.0,
+      "avg_queries": 8.0,
+      "min_time": 6.716521263122559,
+      "max_time": 15.079941987991333
+    },
+    "sequential": {
+      "avg_total_time": 23.505304257074993,
+      "avg_embedding_calls": 8.0,
+      "avg_vector_calls": 8.0,
+      "avg_queries": 8.0,
+      "min_time": 18.41235876083374,
+      "max_time": 28.492544651031494
+    },
+    "comparison": {
+      "time_improvement": 112.64790205909252,
+      "speedup_factor": 2.126479020590925,
+      "api_calls_same": true
+    }
+  },
+  "timestamp": "2025-08-10T18:09:52.450453",
+  "num_runs": 3
+}

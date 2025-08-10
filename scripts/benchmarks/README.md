@@ -36,12 +36,14 @@ python performance_comparison.py
    .venv\Scripts\Activate.ps1
    ```
 
-2. Ensure the server is running:
+2. Set Python path (for module imports):
    ```bash
-   python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+   $env:PYTHONPATH = "."
    ```
 
 3. Have test data loaded in the vector store
+
+**Note**: These scripts work directly with the services and do NOT require the FastAPI server to be running.
 
 ## Output
 

@@ -1,0 +1,92 @@
+{
+  "single_query": [
+    {
+      "approach": "single_query",
+      "total_time": 7.991003751754761,
+      "embedding_calls": 7,
+      "vector_search_calls": 7,
+      "queries_generated": 7,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.4468120506831579,
+      "avg_vector_search_time": 1.0668886389051164
+    },
+    {
+      "approach": "single_query",
+      "total_time": 3.3341028690338135,
+      "embedding_calls": 7,
+      "vector_search_calls": 7,
+      "queries_generated": 7,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0907718113490514,
+      "avg_vector_search_time": 1.083540984562465
+    },
+    {
+      "approach": "single_query",
+      "total_time": 5.263757705688477,
+      "embedding_calls": 7,
+      "vector_search_calls": 7,
+      "queries_generated": 7,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.4523028646196638,
+      "avg_vector_search_time": 0.9720480782645089
+    }
+  ],
+  "multi_query": [
+    {
+      "approach": "multi_query",
+      "total_time": 13.155179262161255,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0418660044670105,
+      "avg_vector_search_time": 0.9754152894020081
+    },
+    {
+      "approach": "multi_query",
+      "total_time": 15.330117225646973,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.018494039773941,
+      "avg_vector_search_time": 1.0153409242630005
+    },
+    {
+      "approach": "multi_query",
+      "total_time": 12.913517475128174,
+      "embedding_calls": 8,
+      "vector_search_calls": 8,
+      "queries_generated": 8,
+      "results_retrieved": 0,
+      "avg_embedding_time": 1.0791740417480469,
+      "avg_vector_search_time": 0.9953784048557281
+    }
+  ],
+  "analysis": {
+    "single_query": {
+      "avg_total_time": 5.529621442159017,
+      "avg_embedding_calls": 7.0,
+      "avg_vector_calls": 7.0,
+      "avg_queries": 7.0,
+      "min_time": 3.3341028690338135,
+      "max_time": 7.991003751754761
+    },
+    "multi_query": {
+      "avg_total_time": 13.799604654312134,
+      "avg_embedding_calls": 8.0,
+      "avg_vector_calls": 8.0,
+      "avg_queries": 8.0,
+      "min_time": 12.913517475128174,
+      "max_time": 15.330117225646973
+    },
+    "comparison": {
+      "time_increase": 149.55785488498356,
+      "embedding_calls_increase": 14.28571428571428,
+      "vector_calls_increase": 14.28571428571428,
+      "queries_increase": 14.28571428571428
+    }
+  },
+  "timestamp": "2025-08-10T18:11:08.897124",
+  "num_runs": 3
+}

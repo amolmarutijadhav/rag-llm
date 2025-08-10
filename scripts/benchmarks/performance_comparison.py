@@ -308,7 +308,7 @@ async def main():
         
         # Save results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"performance_comparison_{timestamp}.json"
+        filename = f"../reports/performance/performance_comparison_{timestamp}.json"
         
         # Convert dataclasses to dict for JSON serialization
         serializable_results = {

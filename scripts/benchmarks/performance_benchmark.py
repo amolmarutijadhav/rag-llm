@@ -308,7 +308,7 @@ async def main():
         
         # Save detailed results to file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"performance_benchmark_{timestamp}.json"
+        filename = f"../reports/performance/performance_benchmark_{timestamp}.json"
         
         with open(filename, 'w') as f:
             json.dump(all_results, f, indent=2, default=str)

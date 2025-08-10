@@ -153,7 +153,7 @@ def test_persona_preservation():
     
     # Save detailed results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_file = f"persona_preservation_test_results_{timestamp}.json"
+    results_file = f"reports/persona_tests/persona_preservation_test_results_{timestamp}.json"
     
     with open(results_file, 'w') as f:
         json.dump({
