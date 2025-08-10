@@ -16,6 +16,7 @@ import asyncio
 from collections import defaultdict
 from app.core.token_config import token_config_service
 from app.core.config import Config
+import re
 
 logger = get_logger(__name__)
 
@@ -24,6 +25,29 @@ class ProcessingPriority(Enum):
     HIGH = 1
     NORMAL = 2
     LOW = 3
+
+@dataclass
+class ConversationState:
+    """Track conversation state and goals for multi-turn conversations"""
+    current_goal: str = ""
+    conversation_phase: str = "planning"  # "planning", "drafting", "reviewing", "finalizing"
+    key_entities: List[str] = None
+    constraints: List[str] = None
+    progress_markers: List[str] = None
+    next_steps: List[str] = None
+    conversation_history: List[str] = None
+    
+    def __post_init__(self):
+        if self.key_entities is None:
+            self.key_entities = []
+        if self.constraints is None:
+            self.constraints = []
+        if self.progress_markers is None:
+            self.progress_markers = []
+        if self.next_steps is None:
+            self.next_steps = []
+        if self.conversation_history is None:
+            self.conversation_history = []
 
 @dataclass
 class ProcessingContext:
@@ -35,12 +59,15 @@ class ProcessingContext:
     rag_results: Optional[List[Dict[str, Any]]] = None
     response_data: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+    conversation_state: Optional[ConversationState] = None
     
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
         if self.conversation_context is None:
             self.conversation_context = {}
+        if self.conversation_state is None:
+            self.conversation_state = ConversationState()
 
 class ConversationAnalysisStrategy(ABC):
     """Abstract base class for conversation analysis strategies"""
@@ -59,6 +86,478 @@ class ConversationAnalysisStrategy(ABC):
     def get_strategy_name(self) -> str:
         """Get the name of this strategy"""
         pass
+
+class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
+    """Enhanced strategy for multi-turn conversations with goal tracking"""
+    
+    def get_strategy_name(self) -> str:
+        return "multi_turn_conversation"
+    
+    async def analyze_conversation(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        """Analyze conversation to extract topics, entities, and conversation state"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug(
+            "Starting multi-turn conversation analysis",
+            extra=log_extra('multi_turn_strategy_analysis_start', strategy=self.get_strategy_name(), messages_count=len(messages))
+        )
+        
+        topics = []
+        entities = []
+        context_clues = []
+        persona_info = {}
+        conversation_state = ConversationState()
+        
+        # Extract topics and entities from all messages
+        for message in messages:
+            if message.role == "system":
+                topics.append("system_instruction")
+                context_clues.append(message.content)
+                persona_info = self._extract_persona_info(message.content)
+                
+            elif message.role == "user":
+                words = message.content.lower().split()
+                topics.extend([word for word in words if len(word) > 3])
+                entities.extend(self._extract_entities(message.content))
+                
+            elif message.role == "assistant":
+                entities.extend(self._extract_entities(message.content))
+        
+        # Analyze conversation state and goals
+        conversation_state = self._analyze_conversation_state(messages)
+        
+        result = {
+            "topics": list(set(topics)),
+            "entities": list(set(entities)),
+            "context_clues": context_clues,
+            "conversation_length": len(messages),
+            "last_user_message": next((msg.content for msg in reversed(messages) if msg.role == "user"), ""),
+            "persona_info": persona_info,
+            "conversation_state": conversation_state
+        }
+        
+        logger.debug(
+            "Multi-turn conversation analysis completed",
+            extra=log_extra(
+                'multi_turn_strategy_analysis_complete',
+                strategy=self.get_strategy_name(),
+                topics_count=len(result['topics']),
+                entities_count=len(result['entities']),
+                goal_detected=bool(conversation_state.current_goal),
+                phase=conversation_state.conversation_phase,
+            )
+        )
+        
+        return result
+    
+    async def generate_enhanced_queries(self, question: str, context: Dict[str, Any]) -> List[str]:
+        """Generate enhanced queries including condensed and summary queries"""
+        correlation_id = get_correlation_id()
+        
+        logger.debug("Starting multi-turn enhanced query generation", extra={
+            'extra_fields': {
+                'event_type': 'multi_turn_strategy_query_generation_start',
+                'strategy': self.get_strategy_name(),
+                'original_question': question,
+                'correlation_id': correlation_id
+            }
+        })
+        
+        queries = [question]  # Always include original question
+        
+        # Get conversation state
+        conversation_state = context.get("conversation_state", ConversationState())
+        
+        # Generate condensed standalone query
+        if context.get("messages"):
+            condensed_query = self._condense_to_standalone_question(
+                context["messages"], max_turns=5
+            )
+            if condensed_query and condensed_query != question:
+                queries.append(condensed_query)
+        
+        # Generate summary query
+        if context.get("messages"):
+            summary_query = self._summarize_recent_context(
+                context["messages"], max_turns=5
+            )
+            if summary_query:
+                queries.append(summary_query)
+        
+        # Add goal-oriented queries
+        if conversation_state.current_goal:
+            goal_query = f"{conversation_state.current_goal} {question}"
+            queries.append(goal_query)
+        
+        # Add phase-specific queries
+        if conversation_state.conversation_phase != "planning":
+            phase_query = f"{conversation_state.conversation_phase} {question}"
+            queries.append(phase_query)
+        
+        # Add entity-based queries
+        for entity in context.get("entities", [])[:3]:
+            queries.append(f"{entity} {question}")
+        
+        # Add topic-based queries
+        for topic in context.get("topics", [])[:2]:
+            if topic != "system_instruction":
+                queries.append(f"{topic} {question}")
+        
+        # Deduplicate and limit queries
+        unique_queries = list(set(queries))
+        final_queries = unique_queries[:8]  # Limit to 8 queries for performance
+        
+        logger.debug("Multi-turn enhanced query generation completed", extra={
+            'extra_fields': {
+                'event_type': 'multi_turn_strategy_query_generation_complete',
+                'strategy': self.get_strategy_name(),
+                'original_queries_count': len(queries),
+                'unique_queries_count': len(unique_queries),
+                'final_queries_count': len(final_queries),
+                'condensed_query_generated': any('condensed' in q for q in final_queries),
+                'summary_query_generated': any('summary' in q for q in final_queries),
+                'goal_query_generated': bool(conversation_state.current_goal),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return final_queries
+    
+    def _condense_to_standalone_question(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
+        """Generate a standalone question from recent conversation turns"""
+        if len(messages) < 2:
+            return ""
+        
+        # Get recent turns (last max_turns * 2 to account for user/assistant pairs)
+        recent_messages = messages[-max_turns * 2:]
+        
+        # Extract key information
+        entities = []
+        topics = []
+        constraints = []
+        goal_indicators = []
+        
+        for message in recent_messages:
+            if message.role == "user":
+                entities.extend(self._extract_entities(message.content))
+                topics.extend(self._extract_topics(message.content))
+                constraints.extend(self._extract_constraints(message.content))
+                goal_indicators.extend(self._extract_goal_indicators(message.content))
+        
+        # Get the last user message
+        last_user_message = ""
+        for message in reversed(recent_messages):
+            if message.role == "user":
+                last_user_message = message.content
+                break
+        
+        if not last_user_message:
+            return ""
+        
+        # Build condensed query
+        condensed_parts = []
+        
+        # Add key entities
+        if entities:
+            condensed_parts.extend(entities[:3])
+        
+        # Add key topics
+        if topics:
+            condensed_parts.extend(topics[:2])
+        
+        # Add goal indicators
+        if goal_indicators:
+            condensed_parts.extend(goal_indicators[:2])
+        
+        # Add the core question
+        condensed_parts.append(last_user_message)
+        
+        # Join and clean up
+        condensed_query = " ".join(condensed_parts)
+        condensed_query = re.sub(r'\s+', ' ', condensed_query).strip()
+        
+        return condensed_query
+    
+    def _summarize_recent_context(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
+        """Generate a summary query from recent conversation context"""
+        if len(messages) < 2:
+            return ""
+        
+        # Get recent turns
+        recent_messages = messages[-max_turns * 2:]
+        
+        # Extract conversation elements
+        goals = []
+        entities = []
+        actions = []
+        
+        for message in recent_messages:
+            if message.role == "user":
+                goals.extend(self._extract_goals(message.content))
+                entities.extend(self._extract_entities(message.content))
+                actions.extend(self._extract_actions(message.content))
+        
+        # Build summary query
+        summary_parts = []
+        
+        if goals:
+            summary_parts.append(f"Goal: {goals[0]}")
+        
+        if entities:
+            summary_parts.append(f"Entities: {', '.join(entities[:3])}")
+        
+        if actions:
+            summary_parts.append(f"Actions: {', '.join(actions[:2])}")
+        
+        if summary_parts:
+            summary_query = " ".join(summary_parts)
+            return summary_query
+        
+        return ""
+    
+    def _analyze_conversation_state(self, messages: List[ChatMessage]) -> ConversationState:
+        """Analyze conversation to determine state, goals, and progress"""
+        state = ConversationState()
+        
+        # Extract conversation history
+        for message in messages:
+            if message.role in ["user", "assistant"]:
+                state.conversation_history.append(message.content)
+        
+        # Detect current goal
+        for message in messages:
+            if message.role == "user":
+                goals = self._extract_goals(message.content)
+                if goals:
+                    state.current_goal = goals[0]
+                    break
+        
+        # Detect conversation phase
+        phase_indicators = {
+            "planning": ["plan", "structure", "outline", "framework", "approach"],
+            "drafting": ["draft", "write", "create", "develop", "prepare"],
+            "reviewing": ["review", "check", "validate", "verify", "assess"],
+            "finalizing": ["finalize", "complete", "finish", "submit", "approve"]
+        }
+        
+        for phase, indicators in phase_indicators.items():
+            for message in messages:
+                if message.role == "user":
+                    if any(indicator in message.content.lower() for indicator in indicators):
+                        state.conversation_phase = phase
+                        break
+            if state.conversation_phase != "planning":
+                break
+        
+        # Extract key entities
+        for message in messages:
+            if message.role in ["user", "assistant"]:
+                entities = self._extract_entities(message.content)
+                state.key_entities.extend(entities)
+        
+        # Remove duplicates and limit
+        state.key_entities = list(set(state.key_entities))[:10]
+        
+        # Extract constraints
+        for message in messages:
+            if message.role == "user":
+                constraints = self._extract_constraints(message.content)
+                state.constraints.extend(constraints)
+        
+        state.constraints = list(set(state.constraints))[:5]
+        
+        return state
+    
+    def _extract_entities(self, text: str) -> List[str]:
+        """Extract entities from text"""
+        # Enhanced entity extraction
+        words = text.split()
+        entities = []
+        for word in words:
+            if word[0].isupper() and len(word) > 2:
+                entities.append(word)
+            elif word.lower() in ["api", "rag", "llm", "ai", "ml", "brd", "basel", "sme"]:
+                entities.append(word.upper())
+        return entities
+    
+    def _extract_topics(self, text: str) -> List[str]:
+        """Extract topics from text"""
+        topics = []
+        text_lower = text.lower()
+        
+        topic_keywords = [
+            "compliance", "risk", "policy", "document", "requirement",
+            "implementation", "migration", "assessment", "analysis"
+        ]
+        
+        for topic in topic_keywords:
+            if topic in text_lower:
+                topics.append(topic)
+        
+        return topics
+    
+    def _extract_constraints(self, text: str) -> List[str]:
+        """Extract constraints from text"""
+        constraints = []
+        text_lower = text.lower()
+        
+        constraint_indicators = [
+            "must", "should", "required", "mandatory", "compliance",
+            "deadline", "budget", "scope", "limitation"
+        ]
+        
+        for indicator in constraint_indicators:
+            if indicator in text_lower:
+                constraints.append(indicator)
+        
+        return constraints
+    
+    def _extract_goals(self, text: str) -> List[str]:
+        """Extract goals from text"""
+        goals = []
+        text_lower = text.lower()
+        
+        goal_indicators = [
+            "need to", "want to", "must", "should", "goal", "objective",
+            "prepare", "create", "develop", "implement", "achieve"
+        ]
+        
+        for indicator in goal_indicators:
+            if indicator in text_lower:
+                # Extract the goal phrase
+                start_idx = text_lower.find(indicator)
+                if start_idx != -1:
+                    goal_phrase = text[start_idx:start_idx + 100]  # Get next 100 chars
+                    goals.append(goal_phrase.strip())
+                    break
+        
+        return goals
+    
+    def _extract_goal_indicators(self, text: str) -> List[str]:
+        """Extract goal indicators from text"""
+        indicators = []
+        text_lower = text.lower()
+        
+        goal_words = [
+            "prepare", "create", "develop", "implement", "achieve",
+            "complete", "finish", "build", "design", "plan"
+        ]
+        
+        for word in goal_words:
+            if word in text_lower:
+                indicators.append(word)
+        
+        return indicators
+    
+    def _extract_actions(self, text: str) -> List[str]:
+        """Extract actions from text"""
+        actions = []
+        text_lower = text.lower()
+        
+        action_words = [
+            "draft", "write", "review", "check", "validate",
+            "update", "modify", "change", "improve", "enhance"
+        ]
+        
+        for word in action_words:
+            if word in text_lower:
+                actions.append(word)
+        
+        return actions
+
+    def _extract_persona_info(self, system_content: str) -> Dict[str, Any]:
+        """Extract persona information from system message"""
+        persona_info = {
+            "role": "",
+            "tone": "",
+            "style": "",
+            "expertise": "",
+            "personality_traits": []
+        }
+        
+        content_lower = system_content.lower()
+        
+        # Extract role (order matters - more specific roles first)
+        role_keywords = {
+            "doctor": ["doctor", "physician", "medical"],
+            "lawyer": ["lawyer", "attorney", "legal"],
+            "engineer": ["engineer", "developer", "technical"],
+            "teacher": ["teacher", "instructor", "educator", "tutor"],
+            "advisor": ["advisor", "counselor", "mentor", "guide"],
+            "agent": ["agent", "representative", "customer service"],
+            "analyst": ["analyst", "researcher", "investigator"],
+            "expert": ["expert", "specialist", "consultant"],
+            "assistant": ["assistant", "helper", "aid"]
+        }
+        
+        for role, keywords in role_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["role"] = role
+                break
+        
+        # Special case: if "professional" is used as a descriptor, check for more specific roles
+        if "professional" in content_lower and persona_info["role"] == "expert":
+            # Look for more specific roles that might be described as "professional"
+            specific_roles = ["doctor", "lawyer", "engineer", "teacher", "advisor", "agent"]
+            for specific_role in specific_roles:
+                if specific_role in content_lower:
+                    persona_info["role"] = specific_role
+                    break
+        
+        # Extract tone
+        tone_keywords = {
+            "friendly": ["friendly", "warm", "welcoming", "kind"],
+            "professional": ["professional", "formal", "business"],
+            "casual": ["casual", "informal", "relaxed"],
+            "sarcastic": ["sarcastic", "witty", "humorous", "funny"],
+            "serious": ["serious", "formal", "strict"],
+            "enthusiastic": ["enthusiastic", "excited", "energetic"],
+            "calm": ["calm", "patient", "gentle"]
+        }
+        
+        for tone, keywords in tone_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["tone"] = tone
+                break
+        
+        # Extract style
+        style_keywords = {
+            "concise": ["concise", "brief", "short", "direct"],
+            "detailed": ["detailed", "comprehensive", "thorough"],
+            "simple": ["simple", "easy", "basic"],
+            "technical": ["technical", "advanced", "complex"],
+            "conversational": ["conversational", "chatty", "talkative"]
+        }
+        
+        for style, keywords in style_keywords.items():
+            if any(keyword in content_lower for keyword in keywords):
+                persona_info["style"] = style
+                break
+        
+        # Extract expertise areas
+        expertise_keywords = [
+            "technology", "medical", "legal", "financial", "educational",
+            "customer service", "technical support", "marketing", "sales",
+            "research", "analysis", "development", "design"
+        ]
+        
+        for expertise in expertise_keywords:
+            if expertise in content_lower:
+                persona_info["expertise"] = expertise
+                break
+        
+        # Extract personality traits
+        trait_keywords = [
+            "helpful", "patient", "knowledgeable", "experienced",
+            "creative", "analytical", "empathetic", "efficient",
+            "thorough", "reliable", "professional", "friendly"
+        ]
+        
+        for trait in trait_keywords:
+            if trait in content_lower:
+                persona_info["personality_traits"].append(trait)
+        
+        return persona_info
 
 class TopicTrackingStrategy(ConversationAnalysisStrategy):
     """Strategy that tracks conversation topics and generates topic-aware queries"""
@@ -439,6 +938,13 @@ class ConversationContextPlugin(ChatCompletionPlugin):
         conversation_context = await strategy.analyze_conversation(context.request.messages)
         context.conversation_context = conversation_context
         
+        # Add messages to context for multi-turn processing
+        context.conversation_context["messages"] = context.request.messages
+        
+        # Add conversation state if available
+        if "conversation_state" in conversation_context:
+            context.conversation_state = conversation_context["conversation_state"]
+        
         # Add persona information to conversation context
         if original_persona:
             context.conversation_context["original_persona"] = original_persona
@@ -508,12 +1014,14 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         
         # Generate enhanced queries using the strategy
         strategy = context.strategy
-        if strategy == "topic_tracking":
+        if strategy == "multi_turn_conversation":
+            analysis_strategy = MultiTurnConversationStrategy()
+        elif strategy == "topic_tracking":
             analysis_strategy = TopicTrackingStrategy()
         elif strategy == "entity_extraction":
             analysis_strategy = EntityExtractionStrategy()
         else:
-            analysis_strategy = TopicTrackingStrategy()  # Default
+            analysis_strategy = MultiTurnConversationStrategy()  # Default to multi-turn
         
         enhanced_queries = await analysis_strategy.generate_enhanced_queries(
             last_user_message, context.conversation_context
@@ -527,35 +1035,8 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
                 original_system_message = message.content
                 break
         
-        # Perform multi-query retrieval
-        all_results = []
-        for query in enhanced_queries:
-            try:
-                # Retrieval-only: embeddings + vector search (no LLM generation here)
-                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
-                search_results = await self.rag_service.vector_store_provider.search_vectors(
-                    query_vector, 5, Config.QDRANT_COLLECTION_NAME
-                )
-                # Normalize to common source structure used downstream
-                for item in search_results:
-                    payload = item.get("payload", {})
-                    content = payload.get("content", "")
-                    metadata = payload.get("metadata", {})
-                    source = metadata.get("source", "Unknown")
-                    all_results.append({
-                        "content": content,
-                        "source": source,
-                        "score": item.get("score", 0.0)
-                    })
-            except Exception as e:
-                logger.warning(f"Query failed: {query}", extra={
-                    'extra_fields': {
-                        'event_type': 'multi_query_rag_query_failed',
-                        'query': query,
-                        'error': str(e),
-                        'correlation_id': correlation_id
-                    }
-                })
+        # Perform parallel multi-query retrieval
+        all_results = await self._process_queries_parallel(enhanced_queries, correlation_id)
         
         # Deduplicate and rank results
         unique_results = self._deduplicate_results(all_results)
@@ -592,6 +1073,138 @@ class MultiQueryRAGPlugin(ChatCompletionPlugin):
         })
         
         return context
+    
+    async def _process_queries_parallel(self, enhanced_queries: List[str], correlation_id: str) -> List[Dict[str, Any]]:
+        """Process multiple queries in parallel for better performance"""
+        
+        # Check if parallel processing is enabled in configuration
+        try:
+            from app.core.enhanced_chat_config import get_performance_config
+            performance_config = get_performance_config()
+            enable_parallel = performance_config.get("enable_parallel_processing", True)
+            max_concurrent = performance_config.get("max_concurrent_queries", 4)
+        except ImportError:
+            # Fallback to default values if config is not available
+            enable_parallel = True
+            max_concurrent = 4
+        
+        if not enable_parallel:
+            logger.debug("Parallel processing disabled, using sequential processing", extra={
+                'extra_fields': {
+                    'event_type': 'parallel_processing_disabled',
+                    'correlation_id': correlation_id
+                }
+            })
+            return await self._process_queries_sequential(enhanced_queries, correlation_id)
+        
+        async def process_single_query(query: str) -> List[Dict[str, Any]]:
+            """Process a single query with embedding and vector search"""
+            try:
+                # Retrieval-only: embeddings + vector search (no LLM generation here)
+                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
+                search_results = await self.rag_service.vector_store_provider.search_vectors(
+                    query_vector, 5, Config.QDRANT_COLLECTION_NAME
+                )
+                
+                # Normalize to common source structure used downstream
+                normalized_results = []
+                for item in search_results:
+                    payload = item.get("payload", {})
+                    content = payload.get("content", "")
+                    metadata = payload.get("metadata", {})
+                    source = metadata.get("source", "Unknown")
+                    normalized_results.append({
+                        "content": content,
+                        "source": source,
+                        "score": item.get("score", 0.0)
+                    })
+                
+                return normalized_results
+                
+            except Exception as e:
+                logger.warning(f"Query failed: {query}", extra={
+                    'extra_fields': {
+                        'event_type': 'multi_query_rag_query_failed',
+                        'query': query,
+                        'error': str(e),
+                        'correlation_id': correlation_id
+                    }
+                })
+                return []
+        
+        # Execute all queries concurrently using asyncio.gather
+        tasks = [process_single_query(query) for query in enhanced_queries]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Combine all results
+        all_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Query {i} failed with exception: {result}", extra={
+                    'extra_fields': {
+                        'event_type': 'multi_query_rag_query_exception',
+                        'query_index': i,
+                        'query': enhanced_queries[i] if i < len(enhanced_queries) else "unknown",
+                        'error': str(result),
+                        'correlation_id': correlation_id
+                    }
+                })
+            else:
+                all_results.extend(result)
+        
+        logger.debug(f"Parallel query processing completed: {len(all_results)} results from {len(enhanced_queries)} queries", extra={
+            'extra_fields': {
+                'event_type': 'parallel_query_processing_complete',
+                'queries_count': len(enhanced_queries),
+                'results_count': len(all_results),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return all_results
+    
+    async def _process_queries_sequential(self, enhanced_queries: List[str], correlation_id: str) -> List[Dict[str, Any]]:
+        """Process multiple queries sequentially (fallback method)"""
+        all_results = []
+        
+        for query in enhanced_queries:
+            try:
+                # Retrieval-only: embeddings + vector search (no LLM generation here)
+                query_vector = (await self.rag_service.embedding_provider.get_embeddings([query]))[0]
+                search_results = await self.rag_service.vector_store_provider.search_vectors(
+                    query_vector, 5, Config.QDRANT_COLLECTION_NAME
+                )
+                # Normalize to common source structure used downstream
+                for item in search_results:
+                    payload = item.get("payload", {})
+                    content = payload.get("content", "")
+                    metadata = payload.get("metadata", {})
+                    source = metadata.get("source", "Unknown")
+                    all_results.append({
+                        "content": content,
+                        "source": source,
+                        "score": item.get("score", 0.0)
+                    })
+            except Exception as e:
+                logger.warning(f"Query failed: {query}", extra={
+                    'extra_fields': {
+                        'event_type': 'multi_query_rag_query_failed',
+                        'query': query,
+                        'error': str(e),
+                        'correlation_id': correlation_id
+                    }
+                })
+        
+        logger.debug(f"Sequential query processing completed: {len(all_results)} results from {len(enhanced_queries)} queries", extra={
+            'extra_fields': {
+                'event_type': 'sequential_query_processing_complete',
+                'queries_count': len(enhanced_queries),
+                'results_count': len(all_results),
+                'correlation_id': correlation_id
+            }
+        })
+        
+        return all_results
     
     def _deduplicate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Deduplicate results based on content"""
@@ -734,7 +1347,14 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 "processing_plugins": ["conversation_context", "multi_query_rag", "response_enhancement"],
                 "persona_preserved": True,
                 "original_persona_length": len(original_system_message),
-                "rag_context_added": bool(context_text)
+                "rag_context_added": bool(context_text),
+                "multi_turn_enabled": True,
+                "conversation_state": {
+                    "current_goal": context.conversation_state.current_goal if context.conversation_state else "",
+                    "conversation_phase": context.conversation_state.conversation_phase if context.conversation_state else "planning",
+                    "key_entities_count": len(context.conversation_state.key_entities) if context.conversation_state else 0,
+                    "constraints_count": len(context.conversation_state.constraints) if context.conversation_state else 0
+                } if context.conversation_state else {}
             }
             
             logger.info("Response enhancement completed", extra={
@@ -794,6 +1414,13 @@ class ResponseEnhancementPlugin(ChatCompletionPlugin):
                 "original_persona_length": len(original_system_message),
                 "persona_detected": bool(original_system_message),
                 "rag_context_added": bool(context_text),
+                "multi_turn_enabled": True,
+                "conversation_state": {
+                    "current_goal": context.conversation_state.current_goal if context.conversation_state else "",
+                    "conversation_phase": context.conversation_state.conversation_phase if context.conversation_state else "planning",
+                    "key_entities_count": len(context.conversation_state.key_entities) if context.conversation_state else 0,
+                    "constraints_count": len(context.conversation_state.constraints) if context.conversation_state else 0
+                } if context.conversation_state else {},
                 "error_occurred": True,
                 "error_plugin": "response_enhancement"
             })
@@ -805,6 +1432,7 @@ class ConversationStrategyFactory:
     
     def __init__(self):
         self.strategies = {
+            "multi_turn_conversation": MultiTurnConversationStrategy(),
             "topic_tracking": TopicTrackingStrategy(),
             "entity_extraction": EntityExtractionStrategy()
         }
@@ -839,10 +1467,10 @@ class ConversationStrategyFactory:
             })
             return self.strategies[selected_strategy]
         
-        # If conversation is long, use topic tracking
-        if len(messages) > 5:
-            selected_strategy = "topic_tracking"
-            logger.debug("Topic tracking strategy selected", extra={
+        # If conversation is long, use multi-turn conversation strategy
+        if len(messages) > 3:
+            selected_strategy = "multi_turn_conversation"
+            logger.debug("Multi-turn conversation strategy selected", extra={
                 'extra_fields': {
                     'event_type': 'strategy_factory_strategy_selected',
                     'strategy': selected_strategy,
@@ -852,9 +1480,9 @@ class ConversationStrategyFactory:
             })
             return self.strategies[selected_strategy]
         
-        # Default to topic tracking
-        selected_strategy = "topic_tracking"
-        logger.debug("Topic tracking strategy selected (default)", extra={
+        # Default to multi-turn conversation strategy
+        selected_strategy = "multi_turn_conversation"
+        logger.debug("Multi-turn conversation strategy selected (default)", extra={
             'extra_fields': {
                 'event_type': 'strategy_factory_strategy_selected',
                 'strategy': selected_strategy,
@@ -1019,6 +1647,8 @@ class EnhancedChatCompletionService:
                     "original_persona_length": len(original_persona),
                     "persona_detected": bool(original_persona),
                     "rag_context_added": False,
+                    "multi_turn_enabled": False,
+                    "conversation_state": {},
                     "error_occurred": True
                 }
             
@@ -1037,7 +1667,9 @@ class EnhancedChatCompletionService:
                     "persona_preserved": False,
                     "original_persona_length": 0,
                     "persona_detected": False,
-                    "rag_context_added": False
+                    "rag_context_added": False,
+                    "multi_turn_enabled": False,
+                    "conversation_state": {}
                 }
             
             logger.info("Enhanced chat completion request completed", extra={
