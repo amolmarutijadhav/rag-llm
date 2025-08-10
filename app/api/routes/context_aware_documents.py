@@ -316,7 +316,7 @@ async def get_context_aware_stats():
 @router.delete("/clear")
 async def clear_context_aware_knowledge_base():
     """Clear all context-aware documents"""
-    return context_aware_rag_service.clear_knowledge_base()
+    return await context_aware_rag_service.clear_knowledge_base()
 
 @router.get("/health")
 async def check_provider_health():

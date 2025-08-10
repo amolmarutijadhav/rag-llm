@@ -20,6 +20,8 @@ class TestEnhancedChatContextAware:
         """Mock context-aware RAG service"""
         with patch('app.api.routes.enhanced_chat.context_aware_rag_service') as mock:
             mock.ask_question_with_context = AsyncMock()
+            mock.get_stats = AsyncMock()
+            mock.clear_knowledge_base = AsyncMock()
             yield mock
     
     @pytest.fixture

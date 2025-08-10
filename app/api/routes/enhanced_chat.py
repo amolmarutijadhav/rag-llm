@@ -394,7 +394,7 @@ async def get_context_aware_stats():
     logger.info("Context-aware stats request received", extra=log_extra('context_aware_stats_request'))
     
     try:
-        stats = context_aware_rag_service.get_stats()
+        stats = await context_aware_rag_service.get_stats()
         
         logger.info("Context-aware stats retrieved successfully", extra=log_extra('context_aware_stats_retrieved'))
         
@@ -461,7 +461,7 @@ async def clear_context_aware_knowledge_base_secure(
         )
 
         # Perform clear
-        result = context_aware_rag_service.clear_knowledge_base()
+        result = await context_aware_rag_service.clear_knowledge_base()
 
         logger.warning("Secure context-aware knowledge base cleared", extra={
             'extra_fields': {
