@@ -409,10 +409,11 @@ class TestQdrantVectorStoreProvider:
         assert len(results) == 1
         assert results[0]["score"] == 0.95
 
-    def test_get_collection_stats_fallback(self, provider):
+    @pytest.mark.asyncio
+    async def test_get_collection_stats_fallback(self, provider):
         """Test getting collection stats with fallback behavior"""
         # Test fallback behavior when collection doesn't exist
-        stats = provider.get_collection_stats("nonexistent_collection")
+        stats = await provider.get_collection_stats("nonexistent_collection")
         
         assert stats["total_documents"] == 0
         assert stats["collection_name"] == "nonexistent_collection"

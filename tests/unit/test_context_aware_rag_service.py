@@ -367,13 +367,26 @@ class TestContextAwareRAGService:
     @pytest.fixture
     def mock_rag_service(self):
         """Mock RAG service"""
-        service = Mock()
-        service.ask_question = AsyncMock()
-        service.document_loader = Mock()
-        service.vector_store = Mock()
-        service.get_stats = Mock(return_value={"total_documents": 10})
-        service.clear_knowledge_base = Mock(return_value={"success": True})
-        return service
+        mock_service = Mock()
+        mock_service.ask_question = AsyncMock(return_value={
+            "success": True,
+            "answer": "Test answer",
+            "sources": [{"content": "test source"}]
+        })
+        mock_service.add_document = AsyncMock(return_value={
+            "success": True,
+            "message": "Document added successfully"
+        })
+        mock_service.add_text = AsyncMock(return_value={
+            "success": True,
+            "message": "Text added successfully"
+        })
+        mock_service.get_stats = AsyncMock(return_value={"total_documents": 10})
+        mock_service.clear_knowledge_base = AsyncMock(return_value={"success": True})
+        mock_service.document_loader = Mock()
+        mock_service.vector_store = Mock()
+        mock_service.vector_store.add_documents = AsyncMock(return_value=True)
+        return mock_service
     
     @pytest.fixture
     def mock_llm_provider(self):
@@ -517,16 +530,20 @@ class TestContextAwareRAGService:
             assert "Error processing question" in result["answer"]
             assert result["response_mode"] == "error"
     
-    def test_get_stats_delegation(self, context_aware_service, mock_rag_service):
+    @pytest.mark.asyncio
+    async def test_get_stats_delegation(self, context_aware_service, mock_rag_service):
         """Test that get_stats delegates to RAG service"""
-        result = context_aware_service.get_stats()
+        mock_rag_service.get_stats.return_value = {"total_documents": 10}
+        result = await context_aware_service.get_stats()
         
         assert result == {"total_documents": 10}
         mock_rag_service.get_stats.assert_called_once()
     
-    def test_clear_knowledge_base_delegation(self, context_aware_service, mock_rag_service):
+    @pytest.mark.asyncio
+    async def test_clear_knowledge_base_delegation(self, context_aware_service, mock_rag_service):
         """Test that clear_knowledge_base delegates to RAG service"""
-        result = context_aware_service.clear_knowledge_base()
+        mock_rag_service.clear_knowledge_base.return_value = {"success": True}
+        result = await context_aware_service.clear_knowledge_base()
         
         assert result == {"success": True}
         mock_rag_service.clear_knowledge_base.assert_called_once() 

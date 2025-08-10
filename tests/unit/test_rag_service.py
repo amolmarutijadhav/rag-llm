@@ -16,7 +16,7 @@ class TestRAGService:
         mock = Mock(spec=VectorStore)
         mock.add_documents = AsyncMock(return_value=True)
         mock.search = AsyncMock(return_value=[])
-        mock.get_collection_stats = Mock(return_value={
+        mock.get_collection_stats = AsyncMock(return_value={
             "total_documents": 0,
             "collection_name": "test"
         })
@@ -56,18 +56,19 @@ class TestRAGService:
 
     @pytest.fixture
     def mock_vector_store_provider(self):
-        """Mock vector store provider."""
-        mock = Mock(spec=VectorStoreProvider)
-        mock.insert_vectors = AsyncMock(return_value=True)
-        mock.search_vectors = AsyncMock(return_value=[])
-        mock.get_collection_stats = Mock(return_value={
-            "total_documents": 0,
-            "collection_name": "test"
+        """Mock vector store provider"""
+        mock_provider = Mock()
+        mock_provider.insert_vectors = AsyncMock(return_value=True)
+        mock_provider.search_vectors = AsyncMock(return_value=[
+            {"payload": {"content": "test content"}, "score": 0.9}
+        ])
+        mock_provider.get_collection_stats = AsyncMock(return_value={
+            "total_documents": 10,
+            "collection_name": "test_collection",
+            "vector_size": 1536
         })
-        mock.create_collection_if_not_exists = AsyncMock(return_value=True)
-        mock.delete_collection = Mock(return_value=True)
-        mock.delete_all_points = Mock(return_value=True)
-        return mock
+        mock_provider.delete_all_points = Mock(return_value=True)
+        return mock_provider
 
     @pytest.fixture
     def rag_service(self, mock_vector_store, mock_document_loader, 
@@ -191,9 +192,15 @@ class TestRAGService:
         assert result["success"] == False
         assert "Text cannot be empty" in result["message"]
 
-    def test_get_stats_success(self, rag_service, mock_vector_store_provider, mock_embedding_provider, mock_llm_provider):
+    @pytest.mark.asyncio
+    async def test_get_stats_success(self, rag_service, mock_vector_store, mock_embedding_provider, mock_llm_provider):
         """Test successful stats retrieval."""
-        result = rag_service.get_stats()
+        mock_vector_store.get_collection_stats.return_value = {
+            "total_documents": 10,
+            "collection_name": "test_collection",
+            "vector_size": 1536
+        }
+        result = await rag_service.get_stats()
         
         assert result["success"] == True
         assert "vector_store" in result
@@ -204,11 +211,12 @@ class TestRAGService:
         assert "chunk_size" in result
         assert "chunk_overlap" in result
 
-    def test_get_stats_vector_store_error(self, rag_service, mock_vector_store_provider):
+    @pytest.mark.asyncio
+    async def test_get_stats_vector_store_error(self, rag_service, mock_vector_store_provider):
         """Test stats retrieval when vector store fails."""
         mock_vector_store_provider.get_collection_stats.side_effect = Exception("Stats error")
         
-        result = rag_service.get_stats()
+        result = await rag_service.get_stats()
         
         assert result["success"] == False
         assert "Error getting statistics" in result["message"]
@@ -220,9 +228,9 @@ class TestRAGService:
         assert result["success"] == True
         assert "cleared successfully" in result["message"]
 
-    def test_clear_knowledge_base_error(self, rag_service, mock_vector_store_provider):
+    def test_clear_knowledge_base_error(self, rag_service, mock_vector_store):
         """Test knowledge base clearing when it fails."""
-        mock_vector_store_provider.delete_all_points.return_value = False
+        mock_vector_store.clear_all_points.return_value = False
         
         result = rag_service.clear_knowledge_base()
         
