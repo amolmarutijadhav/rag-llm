@@ -1,6 +1,6 @@
 # Enhanced Chat Environment Variables Configuration
 
-This document describes all environment variables available for configuring the enhanced chat completion service, particularly focusing on conversation context settings.
+This document describes all environment variables available for configuring the enhanced chat completion service, particularly focusing on conversation context settings and inhouse LLM configuration.
 
 ## Overview
 
@@ -223,6 +223,30 @@ After setting environment variables, validate the configuration:
 2. Verify context window calculations in debug logs
 3. Test with known conversation patterns
 4. Monitor performance metrics
+
+## Inhouse LLM Configuration
+
+### Memory Settings
+
+| Environment Variable | Default | Description | Impact |
+|---------------------|---------|-------------|---------|
+| `INHOUSE_LLM_ENABLE_MEMORY` | `false` | Enable/disable memory feature for inhouse LLM | Controls whether the inhouse LLM provider uses memory capabilities |
+
+### Usage Examples
+
+#### Enable Memory Feature
+
+```env
+# Enable memory feature for inhouse LLM
+INHOUSE_LLM_ENABLE_MEMORY=true
+```
+
+#### Disable Memory Feature (Default)
+
+```env
+# Disable memory feature for inhouse LLM
+INHOUSE_LLM_ENABLE_MEMORY=false
+```
 
 ## Related Documentation
 

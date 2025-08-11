@@ -110,6 +110,7 @@ class Config:
     INHOUSE_LLM_TEMPERATURE = float(os.getenv("INHOUSE_LLM_TEMPERATURE", "0.1"))
     INHOUSE_LLM_MAX_TOKENS = int(os.getenv("INHOUSE_LLM_MAX_TOKENS", "1000"))
     INHOUSE_LLM_AUTH_SCHEME = os.getenv("INHOUSE_LLM_AUTH_SCHEME", "bearer")
+    INHOUSE_LLM_ENABLE_MEMORY = os.getenv("INHOUSE_LLM_ENABLE_MEMORY", "false").lower() == "true"
     
     # In-house Embedding Configuration
     INHOUSE_EMBEDDING_API_KEY = os.getenv("INHOUSE_EMBEDDING_API_KEY", INHOUSE_API_KEY)
@@ -184,7 +185,8 @@ class Config:
                 "auth_scheme": cls.INHOUSE_LLM_AUTH_SCHEME,
                 "timeout": cls.REQUEST_TIMEOUT,
                 "max_retries": cls.MAX_RETRIES,
-                "static_fields": static_fields
+                "static_fields": static_fields,
+                "enable_memory": cls.INHOUSE_LLM_ENABLE_MEMORY
             }
         else:
             return {

@@ -282,6 +282,7 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 - default_temperature: Default temperature
                 - default_max_tokens: Default max tokens
                 - static_fields: Static fields for authentication/identification
+                - enable_memory: Enable/disable memory feature for inhouse LLM
         """
         # Add provider name to config for logging
         config["provider_name"] = "inhouse_llm"
@@ -295,6 +296,9 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
         # Static fields for authentication/identification
         self.static_fields = config.get("static_fields", {})
         
+        # Memory configuration
+        self.enable_memory = config.get("enable_memory", False)
+        
         if not self.api_url:
             raise ValueError("In-house LLM API URL is required")
         
@@ -304,7 +308,8 @@ class InhouseLLMProvider(EnhancedBaseProvider, LLMProvider):
                 'provider': 'inhouse_llm',
                 'default_model': self.default_model,
                 'api_url': self.api_url,
-                'static_fields_count': len(self.static_fields)
+                'static_fields_count': len(self.static_fields),
+                'enable_memory': self.enable_memory
             }
         })
     
