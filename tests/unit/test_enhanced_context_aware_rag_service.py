@@ -399,3 +399,99 @@ class TestEnhancedContextAwareRAGService:
         """Test getting conversation memory"""
         memory = enhanced_service.get_conversation_memory()
         assert isinstance(memory, ConversationMemory)
+
+    def test_progressive_context_relaxation_initial_stage_moderate(self):
+        """Test that progressive context relaxation starts with moderate stage instead of strict"""
+        enhanced_service = EnhancedContextAwareRAGService()
+        
+        # Test first turn - should start with moderate stage
+        params = enhanced_service.context_relaxation.get_context_parameters(
+            session_id="test_session", turn_number=1
+        )
+        
+        # Should start with moderate stage
+        assert params['stage_name'] == 'moderate'
+        
+        # Should have initial boost applied for first turn
+        assert params['initial_boost_applied'] == True
+        
+        # With initial boost applied, values should be enhanced
+        assert params['top_k'] == 7  # 5 + 2 (boost)
+        assert abs(params['similarity_threshold'] - 0.65) < 0.001  # 0.7 - 0.05 (boost)
+        assert abs(params['context_weight'] - 0.9) < 0.001  # 0.8 + 0.1 (boost)
+        
+        # Test turn 4 - should be relaxed stage without boost
+        params_no_boost = enhanced_service.context_relaxation.get_context_parameters(
+            session_id="test_session", turn_number=4
+        )
+        
+        assert params_no_boost['stage_name'] == 'relaxed'
+        assert params_no_boost['initial_boost_applied'] == False
+        assert params_no_boost['top_k'] == 8  # No boost applied
+        assert abs(params_no_boost['similarity_threshold'] - 0.6) < 0.001  # No boost applied
+        assert abs(params_no_boost['context_weight'] - 0.6) < 0.001  # No boost applied
+
+    def test_progressive_context_relaxation_stage_progression(self):
+        """Test progressive context relaxation stage progression with improved initial stages"""
+        enhanced_service = EnhancedContextAwareRAGService()
+        
+        # Turn 1-3: Moderate stage with boost
+        for turn in [1, 2, 3]:
+            params = enhanced_service.context_relaxation.get_context_parameters(
+                session_id="test_session", turn_number=turn
+            )
+            assert params['stage_name'] == 'moderate'
+            assert params['initial_boost_applied'] == True
+        
+        # Turn 4-6: Relaxed stage (no boost after turn 3)
+        for turn in [4, 5, 6]:
+            params = enhanced_service.context_relaxation.get_context_parameters(
+                session_id="test_session", turn_number=turn
+            )
+            assert params['stage_name'] == 'relaxed'
+            assert params['initial_boost_applied'] == False
+            assert params['top_k'] == 8
+            assert params['similarity_threshold'] == 0.6
+        
+        # Turn 7-12: Broad stage
+        for turn in [7, 8, 9, 10, 11, 12]:
+            params = enhanced_service.context_relaxation.get_context_parameters(
+                session_id="test_session", turn_number=turn
+            )
+            assert params['stage_name'] == 'broad'
+            assert params['top_k'] == 12
+            assert params['similarity_threshold'] == 0.5
+        
+        # Turn 13+: Very broad stage
+        for turn in [13, 14, 15]:
+            params = enhanced_service.context_relaxation.get_context_parameters(
+                session_id="test_session", turn_number=turn
+            )
+            assert params['stage_name'] == 'very_broad'
+            assert params['top_k'] == 15
+            assert params['similarity_threshold'] == 0.4
+
+    def test_enhanced_chat_config_integration(self):
+        """Test that enhanced chat configuration is properly integrated"""
+        from app.core.enhanced_chat_config import EnhancedChatConfig
+        
+        # Get configuration
+        config = EnhancedChatConfig.get_progressive_context_config()
+        
+        # Verify configuration values
+        assert config['initial_stage'] == 'moderate'
+        assert config['enable_initial_context_boost'] == True
+        assert config['initial_boost_turns'] == 3
+        assert config['boost_top_k_increase'] == 2
+        assert config['boost_threshold_reduction'] == 0.05
+        assert config['boost_context_weight_increase'] == 0.1
+        
+        # Test configuration update
+        EnhancedChatConfig.update_progressive_context_config(
+            initial_stage='relaxed',
+            enable_initial_context_boost=False
+        )
+        
+        updated_config = EnhancedChatConfig.get_progressive_context_config()
+        assert updated_config['initial_stage'] == 'relaxed'
+        assert updated_config['enable_initial_context_boost'] == False

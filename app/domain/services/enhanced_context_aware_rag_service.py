@@ -16,6 +16,7 @@ from app.domain.models.requests import (
 )
 from app.domain.interfaces.providers import EmbeddingProvider, LLMProvider, VectorStoreProvider
 from app.core.config import Config
+from app.core.enhanced_chat_config import EnhancedChatConfig
 from app.core.logging_config import get_logger, get_correlation_id
 from app.core.logging_helpers import log_extra
 import asyncio
@@ -121,15 +122,43 @@ class AdaptiveConfidenceManager:
 class ProgressiveContextRelaxation:
     """Implements progressive context relaxation for initial conversations"""
     
-    def __init__(self):
+    def __init__(self, initial_stage=None, enable_initial_context_boost=None):
+        """
+        Initialize progressive context relaxation
+        
+        Args:
+            initial_stage: Starting stage ('moderate', 'relaxed', 'broad', 'very_broad')
+            enable_initial_context_boost: Whether to boost context retrieval for first few turns
+        """
+        # Load configuration
+        config = EnhancedChatConfig.get_progressive_context_config()
+        
         self.relaxation_stages = [
-            {'name': 'strict', 'top_k': 3, 'similarity_threshold': 0.8, 'context_weight': 1.0},
             {'name': 'moderate', 'top_k': 5, 'similarity_threshold': 0.7, 'context_weight': 0.8},
             {'name': 'relaxed', 'top_k': 8, 'similarity_threshold': 0.6, 'context_weight': 0.6},
-            {'name': 'broad', 'top_k': 12, 'similarity_threshold': 0.5, 'context_weight': 0.4}
+            {'name': 'broad', 'top_k': 12, 'similarity_threshold': 0.5, 'context_weight': 0.4},
+            {'name': 'very_broad', 'top_k': 15, 'similarity_threshold': 0.4, 'context_weight': 0.3}
         ]
         self.session_stages = {}
-        self.stage_transition_threshold = 0.6  # Confidence threshold for stage transition
+        self.stage_transition_threshold = config.get('stage_transition_threshold', 0.6)
+        
+        # Use provided parameters or fall back to configuration
+        self.enable_initial_context_boost = enable_initial_context_boost if enable_initial_context_boost is not None else config.get('enable_initial_context_boost', True)
+        self.initial_boost_turns = config.get('initial_boost_turns', 3)
+        self.boost_top_k_increase = config.get('boost_top_k_increase', 2)
+        self.boost_threshold_reduction = config.get('boost_threshold_reduction', 0.05)
+        self.boost_context_weight_increase = config.get('boost_context_weight_increase', 0.1)
+        self.max_top_k = config.get('max_top_k', 15)
+        self.min_similarity_threshold = config.get('min_similarity_threshold', 0.3)
+        self.max_context_weight = config.get('max_context_weight', 1.0)
+        
+        # Set initial stage based on configuration
+        stage_names = [stage['name'] for stage in self.relaxation_stages]
+        initial_stage = initial_stage or config.get('initial_stage', 'moderate')
+        if initial_stage in stage_names:
+            self.default_initial_stage = stage_names.index(initial_stage)
+        else:
+            self.default_initial_stage = 0  # Default to moderate
     
     def get_context_parameters(self, session_id: str, turn_number: int, 
                              previous_confidence: float = None) -> Dict[str, Any]:
@@ -142,6 +171,30 @@ class ProgressiveContextRelaxation:
         # Get parameters for current stage
         stage_params = self.relaxation_stages[current_stage]
         
+        # Apply initial context boost for first few turns
+        top_k = stage_params['top_k']
+        similarity_threshold = stage_params['similarity_threshold']
+        context_weight = stage_params['context_weight']
+        
+        if self.enable_initial_context_boost and turn_number <= self.initial_boost_turns:
+            # Boost context retrieval for initial conversations
+            top_k = min(top_k + self.boost_top_k_increase, self.max_top_k)
+            similarity_threshold = max(similarity_threshold - self.boost_threshold_reduction, self.min_similarity_threshold)
+            context_weight = min(context_weight + self.boost_context_weight_increase, self.max_context_weight)
+            
+            logger.debug("Applied initial context boost", extra={
+                'extra_fields': {
+                    'event_type': 'initial_context_boost',
+                    'session_id': session_id,
+                    'turn_number': turn_number,
+                    'original_top_k': stage_params['top_k'],
+                    'boosted_top_k': top_k,
+                    'original_threshold': stage_params['similarity_threshold'],
+                    'boosted_threshold': similarity_threshold,
+                    'correlation_id': correlation_id
+                }
+            })
+        
         logger.debug("Progressive context relaxation parameters", extra={
             'extra_fields': {
                 'event_type': 'context_relaxation_parameters',
@@ -149,19 +202,21 @@ class ProgressiveContextRelaxation:
                 'turn_number': turn_number,
                 'current_stage': current_stage,
                 'stage_name': stage_params['name'],
-                'top_k': stage_params['top_k'],
-                'similarity_threshold': stage_params['similarity_threshold'],
-                'context_weight': stage_params['context_weight'],
+                'top_k': top_k,
+                'similarity_threshold': similarity_threshold,
+                'context_weight': context_weight,
+                'initial_boost_applied': self.enable_initial_context_boost and turn_number <= 3,
                 'correlation_id': correlation_id
             }
         })
         
         return {
-            'top_k': stage_params['top_k'],
-            'similarity_threshold': stage_params['similarity_threshold'],
-            'context_weight': stage_params['context_weight'],
+            'top_k': top_k,
+            'similarity_threshold': similarity_threshold,
+            'context_weight': context_weight,
             'stage': current_stage,
-            'stage_name': stage_params['name']
+            'stage_name': stage_params['name'],
+            'initial_boost_applied': self.enable_initial_context_boost and turn_number <= 3
         }
     
     def _determine_stage(self, session_id: str, turn_number: int, 
@@ -174,15 +229,15 @@ class ProgressiveContextRelaxation:
         session_data = self.session_stages[session_id]
         session_data['turn_count'] = turn_number
         
-        # Progressive relaxation based on turn number
-        if turn_number <= 2:
-            stage = 0  # Strict
-        elif turn_number <= 5:
-            stage = 1  # Moderate
-        elif turn_number <= 10:
-            stage = 2  # Relaxed
+        # Progressive relaxation based on turn number - starting with moderate for better initial context
+        if turn_number <= 3:
+            stage = 0  # Moderate (was Strict) - better initial context retrieval
+        elif turn_number <= 6:
+            stage = 1  # Relaxed (was Moderate)
+        elif turn_number <= 12:
+            stage = 2  # Broad (was Relaxed)
         else:
-            stage = 3  # Broad
+            stage = 3  # Very Broad (was Broad)
         
         # Adjust based on previous confidence
         if previous_confidence is not None:
@@ -764,7 +819,7 @@ class EnhancedContextAwareRAGService:
         self.strategy_selector = AdaptiveStrategySelector()
         self.conversation_memory = ConversationMemory()
         self.confidence_manager = AdaptiveConfidenceManager()
-        self.context_relaxation = ProgressiveContextRelaxation()
+        self.context_relaxation = ProgressiveContextRelaxation()  # Uses configuration defaults
         self.turn_tracker = ConversationTurnTracker()
         
         logger.info("Enhanced context-aware RAG service initialized", extra={

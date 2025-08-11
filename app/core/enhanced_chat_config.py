@@ -3,6 +3,7 @@ Configuration for Enhanced Chat Completion Service
 """
 
 from typing import Dict, Any
+from app.core.config import Config
 
 # Query Generation Configuration
 QUERY_GENERATION_CONFIG = {
@@ -143,6 +144,88 @@ QUALITY_CONFIG = {
     "enable_relevance_scoring": True,
     "relevance_threshold": 0.6
 }
+
+# Enhanced Chat Configuration
+# Configuration for enhanced chat completion and progressive context relaxation
+
+class EnhancedChatConfig:
+    """Configuration for enhanced chat completion features"""
+    
+    # Progressive Context Relaxation Configuration
+    PROGRESSIVE_CONTEXT_RELAXATION = {
+        'initial_stage': 'moderate',  # 'moderate', 'relaxed', 'broad', 'very_broad'
+        'enable_initial_context_boost': True,
+        'initial_boost_turns': 3,  # Number of turns to apply initial boost
+        'boost_top_k_increase': 2,  # Additional top_k for initial turns
+        'boost_threshold_reduction': 0.05,  # Threshold reduction for initial turns
+        'boost_context_weight_increase': 0.1,  # Context weight increase for initial turns
+        'stage_transition_threshold': 0.6,  # Confidence threshold for stage transitions
+        'max_top_k': 15,  # Maximum top_k value
+        'min_similarity_threshold': 0.3,  # Minimum similarity threshold
+        'max_context_weight': 1.0,  # Maximum context weight
+    }
+    
+    # Adaptive Confidence Management Configuration
+    ADAPTIVE_CONFIDENCE = {
+        'base_threshold': 0.7,
+        'min_threshold': 0.3,
+        'max_threshold': 0.95,
+        'turn_decay_factor': 0.05,
+        'context_boost_factor': 0.1,
+    }
+    
+    # Conversation Turn Tracking Configuration
+    TURN_TRACKING = {
+        'max_turn_history': 20,
+        'confidence_trend_window': 5,  # Turns to consider for trend analysis
+    }
+    
+    # Strategy Selection Configuration
+    STRATEGY_SELECTION = {
+        'complexity_threshold': 0.7,  # Threshold for high complexity conversations
+        'technical_terms': ['api', 'code', 'function', 'error', 'debug', 'technical', 'implementation', 'algorithm'],
+        'creative_terms': ['creative', 'design', 'art', 'story', 'narrative', 'imagine', 'brainstorm', 'idea'],
+    }
+    
+    @classmethod
+    def get_progressive_context_config(cls) -> Dict[str, Any]:
+        """Get progressive context relaxation configuration"""
+        return cls.PROGRESSIVE_CONTEXT_RELAXATION.copy()
+    
+    @classmethod
+    def get_adaptive_confidence_config(cls) -> Dict[str, Any]:
+        """Get adaptive confidence management configuration"""
+        return cls.ADAPTIVE_CONFIDENCE.copy()
+    
+    @classmethod
+    def get_turn_tracking_config(cls) -> Dict[str, Any]:
+        """Get conversation turn tracking configuration"""
+        return cls.TURN_TRACKING.copy()
+    
+    @classmethod
+    def get_strategy_selection_config(cls) -> Dict[str, Any]:
+        """Get strategy selection configuration"""
+        return cls.STRATEGY_SELECTION.copy()
+    
+    @classmethod
+    def update_progressive_context_config(cls, **kwargs):
+        """Update progressive context relaxation configuration"""
+        cls.PROGRESSIVE_CONTEXT_RELAXATION.update(kwargs)
+    
+    @classmethod
+    def update_adaptive_confidence_config(cls, **kwargs):
+        """Update adaptive confidence management configuration"""
+        cls.ADAPTIVE_CONFIDENCE.update(kwargs)
+    
+    @classmethod
+    def get_all_config(cls) -> Dict[str, Any]:
+        """Get all enhanced chat configuration"""
+        return {
+            'progressive_context_relaxation': cls.get_progressive_context_config(),
+            'adaptive_confidence': cls.get_adaptive_confidence_config(),
+            'turn_tracking': cls.get_turn_tracking_config(),
+            'strategy_selection': cls.get_strategy_selection_config(),
+        }
 
 def get_config() -> Dict[str, Any]:
     """Get the complete configuration for enhanced chat completion"""
