@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from app.domain.models import ChatCompletionRequest, ChatCompletionResponse, SecureClearRequest
 from app.domain.services.enhanced_chat_completion_service import EnhancedChatCompletionService
 from app.domain.services.context_aware_rag_service import ContextAwareRAGService
+from app.domain.services.enhanced_context_aware_rag_service import EnhancedContextAwareRAGService
 from app.domain.services.system_message_parser import SystemMessageParser
 from app.domain.services.rag_service import RAGService
 from app.infrastructure.providers.service_locator import ServiceLocator
@@ -14,6 +15,7 @@ from app.core.logging_config import get_logger, get_correlation_id
 from app.core.logging_helpers import log_extra
 from app.core.config import Config
 from app.api.middleware.security import security_middleware
+import uuid
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -26,6 +28,7 @@ enhanced_service = EnhancedChatCompletionService(rag_service, llm_provider)
 
 # Initialize context-aware services
 context_aware_rag_service = ContextAwareRAGService(rag_service=rag_service, llm_provider=llm_provider)
+enhanced_context_aware_rag_service = EnhancedContextAwareRAGService(rag_service=rag_service, llm_provider=llm_provider)
 system_parser = SystemMessageParser()
 
 @router.post("/completions", response_model=ChatCompletionResponse)
@@ -118,8 +121,127 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
             'DOCUMENT_CATEGORIES:', 'MIN_CONFIDENCE:', 'FALLBACK_STRATEGY:'
         ]) or '<config>' in system_message
         
-        if has_context_directives:
-            # Use context-aware RAG service
+        # Check if this is a multi-turn conversation (more than 2 messages)
+        is_multi_turn = len(request.messages) > 2
+        
+        if has_context_directives and is_multi_turn:
+            # Use enhanced context-aware RAG service for multi-turn conversations with context directives
+            logger.info(
+                "Using enhanced context-aware RAG processing for multi-turn conversation",
+                extra=log_extra(
+                    'enhanced_context_aware_rag_processing_start',
+                    model=request.model,
+                    last_user_message_length=len(last_user_message),
+                    system_message_length=len(system_message),
+                    messages_count=len(request.messages),
+                )
+            )
+            
+            # Generate session ID for conversation memory
+            session_id = str(uuid.uuid4())
+            
+            # Convert messages to conversation history format
+            conversation_history = []
+            for msg in request.messages:
+                conversation_history.append({
+                    'role': msg.role,
+                    'content': msg.content
+                })
+            
+            # Process with enhanced context-aware RAG
+            rag_result = await enhanced_context_aware_rag_service.ask_question_with_context_and_conversation(
+                question=last_user_message,
+                system_message=system_message,
+                conversation_history=conversation_history,
+                session_id=session_id,
+                top_k=3
+            )
+            
+            logger.info(
+                "Enhanced context-aware RAG processing completed",
+                extra=log_extra(
+                    'enhanced_context_aware_rag_processing_complete',
+                    model=request.model,
+                    rag_success=rag_result.get('success', False),
+                    strategy_used=rag_result.get('strategy_used', 'unknown'),
+                    enhanced_queries_count=len(rag_result.get('enhanced_queries', [])),
+                    sources_found=len(rag_result.get('sources', [])),
+                )
+            )
+            
+            # Prepare the response
+            if rag_result.get('success', False):
+                content = rag_result['answer']
+                sources = rag_result.get('sources', [])
+                
+                logger.info(
+                    "Using enhanced context-aware RAG answer",
+                    extra=log_extra(
+                        'enhanced_context_aware_rag_answer_used',
+                        model=request.model,
+                        answer_length=len(content),
+                        sources_count=len(sources),
+                        strategy_used=rag_result.get('strategy_used', 'unknown'),
+                        enhanced_queries_count=len(rag_result.get('enhanced_queries', [])),
+                    )
+                )
+            else:
+                # Fallback response (avoid leaking internal error details)
+                content = "I'm sorry, I couldn't process your request."
+                sources = []
+                
+                logger.warning(
+                    "Using fallback answer for enhanced context-aware chat completion",
+                    extra=log_extra(
+                        'enhanced_context_aware_chat_completion_fallback_used',
+                        model=request.model,
+                        rag_error=rag_result.get('answer', 'Unknown error'),
+                        strategy_used=rag_result.get('strategy_used', 'unknown'),
+                        persona_detected=bool(original_persona),
+                    )
+                )
+            
+            # Create chat completion response
+            response = ChatCompletionResponse(
+                id=f"chatcmpl-{correlation_id}",
+                object="chat.completion",
+                created=int(__import__('time').time()),
+                model=request.model,
+                choices=[
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": content
+                        },
+                        "finish_reason": "stop"
+                    }
+                ],
+                usage={
+                    "prompt_tokens": len(last_user_message.split()),
+                    "completion_tokens": len(content.split()),
+                    "total_tokens": len(last_user_message.split()) + len(content.split())
+                },
+                sources=sources
+            )
+            
+            # Add enhanced context-aware metadata
+            response.metadata = {
+                "enhanced_context_aware": True,
+                "multi_turn_conversation": True,
+                "strategy_used": rag_result.get('strategy_used', 'unknown'),
+                "enhanced_queries_count": len(rag_result.get('enhanced_queries', [])),
+                "conversation_context": rag_result.get('conversation_context', {}),
+                "session_id": session_id,
+                "persona_preserved": True,
+                "original_persona_length": len(original_persona),
+                "persona_detected": bool(original_persona),
+                "rag_context_added": len(sources) > 0,
+                "fallback_used": rag_result.get('fallback_used', False)
+            }
+            
+        elif has_context_directives:
+            # Use context-aware RAG service for single-turn conversations with context directives
             logger.info(
                 "Using context-aware RAG processing",
                 extra=log_extra(
