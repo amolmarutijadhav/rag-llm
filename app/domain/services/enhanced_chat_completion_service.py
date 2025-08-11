@@ -116,12 +116,12 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
                 persona_info = self._extract_persona_info(message.content)
                 
             elif message.role == "user":
-                words = message.content.lower().split()
-                topics.extend([word for word in words if len(word) > 3])
-                entities.extend(self._extract_entities(message.content))
+                # Enhanced topic and entity extraction for short messages
+                topics.extend(self._extract_topics_enhanced(message.content))
+                entities.extend(self._extract_entities_enhanced(message.content))
                 
             elif message.role == "assistant":
-                entities.extend(self._extract_entities(message.content))
+                entities.extend(self._extract_entities_enhanced(message.content))
         
         # Analyze conversation state and goals
         conversation_state = self._analyze_conversation_state(messages)
@@ -151,7 +151,7 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         return result
     
     async def generate_enhanced_queries(self, question: str, context: Dict[str, Any]) -> List[str]:
-        """Generate enhanced queries including condensed and summary queries"""
+        """Generate enhanced queries including condensed and summary queries with short message support"""
         correlation_id = get_correlation_id()
         
         logger.debug("Starting multi-turn enhanced query generation", extra={
@@ -164,6 +164,21 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         })
         
         queries = [question]  # Always include original question
+        
+        # Enhanced handling for short questions (one-word responses)
+        if len(question.split()) <= 2:
+            # Generate context-aware expansion for short messages
+            expanded_queries = self._expand_short_question(question, context)
+            queries.extend(expanded_queries)
+            
+            logger.debug("Enhanced short question processing", extra={
+                'extra_fields': {
+                    'event_type': 'short_question_expansion',
+                    'original_question': question,
+                    'expanded_queries_count': len(expanded_queries),
+                    'correlation_id': correlation_id
+                }
+            })
         
         # Get conversation state
         conversation_state = context.get("conversation_state", ConversationState())
@@ -205,7 +220,7 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         
         # Deduplicate and limit queries
         unique_queries = list(set(queries))
-        final_queries = unique_queries[:8]  # Limit to 8 queries for performance
+        final_queries = unique_queries[:10]  # Increased limit for better context coverage
         
         logger.debug("Multi-turn enhanced query generation completed", extra={
             'extra_fields': {
@@ -217,6 +232,7 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
                 'condensed_query_generated': any('condensed' in q for q in final_queries),
                 'summary_query_generated': any('summary' in q for q in final_queries),
                 'goal_query_generated': bool(conversation_state.current_goal),
+                'short_question_expanded': len(question.split()) <= 2,
                 'correlation_id': correlation_id
             }
         })
@@ -224,25 +240,28 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         return final_queries
     
     def _condense_to_standalone_question(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
-        """Generate a standalone question from recent conversation turns"""
+        """Generate a standalone question from recent conversation turns with enhanced short message support"""
         if len(messages) < 2:
             return ""
         
         # Get recent turns (last max_turns * 2 to account for user/assistant pairs)
         recent_messages = messages[-max_turns * 2:]
         
-        # Extract key information
+        # Enhanced extraction with short message support
         entities = []
         topics = []
         constraints = []
         goal_indicators = []
+        context_clues = []
         
         for message in recent_messages:
             if message.role == "user":
-                entities.extend(self._extract_entities(message.content))
-                topics.extend(self._extract_topics(message.content))
+                # Enhanced entity extraction for short messages
+                entities.extend(self._extract_entities_enhanced(message.content))
+                topics.extend(self._extract_topics_enhanced(message.content))
                 constraints.extend(self._extract_constraints(message.content))
                 goal_indicators.extend(self._extract_goal_indicators(message.content))
+                context_clues.extend(self._extract_context_clues(message.content))
         
         # Get the last user message
         last_user_message = ""
@@ -254,10 +273,15 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         if not last_user_message:
             return ""
         
-        # Build condensed query
+        # Enhanced query building with context preservation
         condensed_parts = []
         
-        # Add key entities
+        # Add context from previous messages if current message is short
+        if len(last_user_message.split()) <= 2:
+            # Include more context from previous messages
+            condensed_parts.extend(self._extract_context_from_history(recent_messages))
+        
+        # Add key entities (including short ones)
         if entities:
             condensed_parts.extend(entities[:3])
         
@@ -269,6 +293,10 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         if goal_indicators:
             condensed_parts.extend(goal_indicators[:2])
         
+        # Add context clues
+        if context_clues:
+            condensed_parts.extend(context_clues[:2])
+        
         # Add the core question
         condensed_parts.append(last_user_message)
         
@@ -278,26 +306,166 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         
         return condensed_query
     
+    def _expand_short_question(self, question: str, context: Dict[str, Any]) -> List[str]:
+        """Expand short questions with context from conversation"""
+        expanded = []
+        
+        # Get recent context
+        recent_entities = context.get("entities", [])[:3]
+        recent_topics = context.get("topics", [])[:2]
+        conversation_state = context.get("conversation_state", {})
+        
+        # Expand based on question type
+        question_lower = question.lower()
+        
+        if question_lower in ["yes", "no"]:
+            # For yes/no questions, add context from previous question
+            if context.get("messages"):
+                prev_question = self._get_previous_question(context["messages"])
+                if prev_question:
+                    expanded.append(f"{prev_question} {question}")
+        
+        elif question_lower in ["why", "how", "what", "when", "where"]:
+            # For question words, add context from conversation
+            for entity in recent_entities:
+                expanded.append(f"{question} {entity}")
+            for topic in recent_topics:
+                if topic != "system_instruction":
+                    expanded.append(f"{question} {topic}")
+        
+        else:
+            # For other short messages, add general context
+            for entity in recent_entities:
+                expanded.append(f"{entity} {question}")
+        
+        return expanded
+    
+    def _get_previous_question(self, messages: List[ChatMessage]) -> str:
+        """Get the previous assistant question that the user is responding to"""
+        # Look for the most recent assistant message that contains a question
+        for message in reversed(messages):
+            if message.role == "assistant":
+                content = message.content
+                # Check if it contains question indicators
+                if any(indicator in content.lower() for indicator in ["?", "what", "how", "why", "when", "where", "which", "do you", "can you", "would you"]):
+                    # Extract the question part
+                    sentences = content.split('.')
+                    for sentence in sentences:
+                        if any(indicator in sentence.lower() for indicator in ["?", "what", "how", "why", "when", "where", "which", "do you", "can you", "would you"]):
+                            return sentence.strip()
+        return ""
+    
+    def _extract_context_from_history(self, messages: List[ChatMessage]) -> List[str]:
+        """Extract context from conversation history for short messages"""
+        context_parts = []
+        
+        # Get recent user messages (excluding the current one)
+        recent_user_messages = []
+        for message in messages[:-1]:  # Exclude the last message
+            if message.role == "user":
+                recent_user_messages.append(message.content)
+        
+        # Extract key terms from recent messages
+        for message in recent_user_messages[-3:]:  # Last 3 user messages
+            # Extract entities and topics
+            entities = self._extract_entities_enhanced(message)
+            topics = self._extract_topics_enhanced(message)
+            
+            context_parts.extend(entities[:2])
+            context_parts.extend(topics[:1])
+        
+        return context_parts
+    
+    def _extract_entities_enhanced(self, text: str) -> List[str]:
+        """Enhanced entity extraction that handles short messages"""
+        entities = []
+        words = text.split()
+        
+        # Handle short words that might be entities
+        short_entities = ["api", "ai", "ml", "ui", "ux", "db", "sql", "js", "ts", "py", "go", "java", "rag", "llm"]
+        
+        for word in words:
+            word_lower = word.lower()
+            
+            # Check for short technical entities
+            if word_lower in short_entities:
+                entities.append(word.upper())
+            # Check for capitalized words (including short ones)
+            elif word[0].isupper() and len(word) >= 2:
+                entities.append(word)
+            # Check for acronyms
+            elif word.isupper() and len(word) >= 2:
+                entities.append(word)
+            # Check for technical terms
+            elif word_lower in ["python", "javascript", "typescript", "react", "angular", "vue", "node", "express", "django", "flask"]:
+                entities.append(word)
+        
+        return entities
+    
+    def _extract_topics_enhanced(self, text: str) -> List[str]:
+        """Enhanced topic extraction that handles short messages"""
+        topics = []
+        text_lower = text.lower()
+        
+        # Enhanced topic keywords including short terms
+        topic_keywords = [
+            "compliance", "risk", "policy", "document", "requirement",
+            "implementation", "migration", "assessment", "analysis",
+            "api", "rag", "llm", "ai", "ml", "data", "code", "test",
+            "deploy", "config", "setup", "install", "error", "bug",
+            "fix", "help", "guide", "tutorial", "example"
+        ]
+        
+        for topic in topic_keywords:
+            if topic in text_lower:
+                topics.append(topic)
+        
+        return topics
+    
+    def _extract_context_clues(self, text: str) -> List[str]:
+        """Extract context clues from text"""
+        clues = []
+        text_lower = text.lower()
+        
+        # Context clue indicators
+        clue_indicators = [
+            "about", "regarding", "concerning", "related to", "in terms of",
+            "specifically", "particularly", "especially", "mainly", "primarily",
+            "focus on", "concentrate on", "deal with", "handle", "manage"
+        ]
+        
+        for indicator in clue_indicators:
+            if indicator in text_lower:
+                clues.append(indicator)
+        
+        return clues
+    
     def _summarize_recent_context(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
-        """Generate a summary query from recent conversation context"""
+        """Generate a summary query from recent conversation context with enhanced short message support"""
         if len(messages) < 2:
             return ""
         
-        # Get recent turns
-        recent_messages = messages[-max_turns * 2:]
+        # Use adaptive context window based on message complexity
+        context_window = self._calculate_adaptive_context_window(messages, max_turns)
+        recent_messages = messages[-context_window:]
         
-        # Extract conversation elements
+        # Extract conversation elements with weighting
         goals = []
         entities = []
         actions = []
+        context_clues = []
         
-        for message in recent_messages:
+        # Weight recent messages more heavily
+        for i, message in enumerate(recent_messages):
+            weight = 1.0 + (i / len(recent_messages))  # Recent messages get higher weight
+            
             if message.role == "user":
                 goals.extend(self._extract_goals(message.content))
-                entities.extend(self._extract_entities(message.content))
+                entities.extend(self._extract_entities_enhanced(message.content))
                 actions.extend(self._extract_actions(message.content))
+                context_clues.extend(self._extract_context_clues(message.content))
         
-        # Build summary query
+        # Build enhanced summary query
         summary_parts = []
         
         if goals:
@@ -309,14 +477,33 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         if actions:
             summary_parts.append(f"Actions: {', '.join(actions[:2])}")
         
+        if context_clues:
+            summary_parts.append(f"Context: {', '.join(context_clues[:2])}")
+        
         if summary_parts:
             summary_query = " ".join(summary_parts)
             return summary_query
         
         return ""
     
+    def _calculate_adaptive_context_window(self, messages: List[ChatMessage], max_turns: int) -> int:
+        """Calculate adaptive context window based on message complexity"""
+        if len(messages) < 4:
+            return len(messages)
+        
+        # Check if the last message is short
+        last_message = messages[-1].content if messages else ""
+        is_short_message = len(last_message.split()) <= 2
+        
+        if is_short_message:
+            # Use larger context window for short messages
+            return min(max_turns * 3, len(messages))
+        else:
+            # Use standard context window for longer messages
+            return max_turns * 2
+    
     def _analyze_conversation_state(self, messages: List[ChatMessage]) -> ConversationState:
-        """Analyze conversation to determine state, goals, and progress"""
+        """Analyze conversation to determine state, goals, and progress with enhanced short message support"""
         state = ConversationState()
         
         # Extract conversation history
@@ -324,7 +511,7 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
             if message.role in ["user", "assistant"]:
                 state.conversation_history.append(message.content)
         
-        # Detect current goal
+        # Enhanced goal detection with pattern inference
         for message in messages:
             if message.role == "user":
                 goals = self._extract_goals(message.content)
@@ -332,27 +519,17 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
                     state.current_goal = goals[0]
                     break
         
-        # Detect conversation phase
-        phase_indicators = {
-            "planning": ["plan", "structure", "outline", "framework", "approach"],
-            "drafting": ["draft", "write", "create", "develop", "prepare"],
-            "reviewing": ["review", "check", "validate", "verify", "assess"],
-            "finalizing": ["finalize", "complete", "finish", "submit", "approve"]
-        }
+        # If no explicit goal found, infer from conversation pattern
+        if not state.current_goal:
+            state.current_goal = self._infer_goal_from_pattern(messages)
         
-        for phase, indicators in phase_indicators.items():
-            for message in messages:
-                if message.role == "user":
-                    if any(indicator in message.content.lower() for indicator in indicators):
-                        state.conversation_phase = phase
-                        break
-            if state.conversation_phase != "planning":
-                break
+        # Enhanced conversation phase detection
+        state.conversation_phase = self._detect_conversation_phase(messages)
         
-        # Extract key entities
+        # Extract key entities with short message support
         for message in messages:
             if message.role in ["user", "assistant"]:
-                entities = self._extract_entities(message.content)
+                entities = self._extract_entities_enhanced(message.content)
                 state.key_entities.extend(entities)
         
         # Remove duplicates and limit
@@ -367,6 +544,43 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         state.constraints = list(set(state.constraints))[:5]
         
         return state
+    
+    def _infer_goal_from_pattern(self, messages: List[ChatMessage]) -> str:
+        """Infer conversation goal from message patterns"""
+        # Analyze message patterns to infer goal
+        user_messages = [msg.content for msg in messages if msg.role == "user"]
+        
+        # Simple pattern matching for common goals
+        if any("help" in msg.lower() for msg in user_messages):
+            return "seeking_help"
+        elif any("explain" in msg.lower() for msg in user_messages):
+            return "explanation_request"
+        elif any("how to" in msg.lower() for msg in user_messages):
+            return "how_to_guidance"
+        elif any("problem" in msg.lower() or "error" in msg.lower() for msg in user_messages):
+            return "problem_solving"
+        elif any("yes" in msg.lower() or "no" in msg.lower() for msg in user_messages):
+            return "confirmation_request"
+        else:
+            return "general_inquiry"
+    
+    def _detect_conversation_phase(self, messages: List[ChatMessage]) -> str:
+        """Enhanced conversation phase detection"""
+        phase_indicators = {
+            "planning": ["plan", "structure", "outline", "framework", "approach"],
+            "drafting": ["draft", "write", "create", "develop", "prepare"],
+            "reviewing": ["review", "check", "validate", "verify", "assess"],
+            "finalizing": ["finalize", "complete", "finish", "submit", "approve"]
+        }
+        
+        for phase, indicators in phase_indicators.items():
+            for message in messages:
+                if message.role == "user":
+                    if any(indicator in message.content.lower() for indicator in indicators):
+                        return phase
+        
+        # Default to planning if no specific phase detected
+        return "planning"
     
     def _extract_entities(self, text: str) -> List[str]:
         """Extract entities from text"""
