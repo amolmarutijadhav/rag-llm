@@ -2,60 +2,99 @@
 Configuration for Enhanced Chat Completion Service
 """
 
+import os
 from typing import Dict, Any
 from app.core.config import Config
 
+
+def _get_env_int(key: str, default: int) -> int:
+    """Get integer environment variable with validation and default fallback"""
+    try:
+        value = os.getenv(key)
+        if value is None:
+            return default
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _get_env_float(key: str, default: float) -> float:
+    """Get float environment variable with validation and default fallback"""
+    try:
+        value = os.getenv(key)
+        if value is None:
+            return default
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _get_env_bool(key: str, default: bool) -> bool:
+    """Get boolean environment variable with validation and default fallback"""
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.lower() in ('true', '1', 'yes', 'on')
+
+
 # Query Generation Configuration
 QUERY_GENERATION_CONFIG = {
-    "max_conversation_turns": 5,
-    "condensed_query_weight": 0.4,
-    "summary_query_weight": 0.3,
-    "original_query_weight": 0.3,
-    "enable_goal_tracking": True,
-    "enable_phase_detection": True,
-    "max_queries_per_request": 8,
-    "min_query_length": 10,
-    "max_query_length": 200
+    "max_conversation_turns": _get_env_int("ENHANCED_CHAT_MAX_TURNS", 5),
+    "condensed_query_weight": _get_env_float("ENHANCED_CHAT_CONDENSED_QUERY_WEIGHT", 0.4),
+    "summary_query_weight": _get_env_float("ENHANCED_CHAT_SUMMARY_QUERY_WEIGHT", 0.3),
+    "original_query_weight": _get_env_float("ENHANCED_CHAT_ORIGINAL_QUERY_WEIGHT", 0.3),
+    "enable_goal_tracking": _get_env_bool("ENHANCED_CHAT_ENABLE_GOAL_TRACKING", True),
+    "enable_phase_detection": _get_env_bool("ENHANCED_CHAT_ENABLE_PHASE_DETECTION", True),
+    "max_queries_per_request": _get_env_int("ENHANCED_CHAT_MAX_QUERIES_PER_REQUEST", 8),
+    "min_query_length": _get_env_int("ENHANCED_CHAT_MIN_QUERY_LENGTH", 10),
+    "max_query_length": _get_env_int("ENHANCED_CHAT_MAX_QUERY_LENGTH", 200)
 }
 
 # Conversation State Configuration
 CONVERSATION_STATE_CONFIG = {
-    "max_entities_tracked": 10,
-    "max_constraints_tracked": 5,
-    "state_persistence_turns": 10,
-    "goal_detection_threshold": 0.7,
-    "phase_detection_confidence": 0.6,
-    "max_conversation_history_length": 50
+    "max_entities_tracked": _get_env_int("ENHANCED_CHAT_MAX_ENTITIES_TRACKED", 10),
+    "max_constraints_tracked": _get_env_int("ENHANCED_CHAT_MAX_CONSTRAINTS_TRACKED", 5),
+    "state_persistence_turns": _get_env_int("ENHANCED_CHAT_STATE_PERSISTENCE_TURNS", 10),
+    "goal_detection_threshold": _get_env_float("ENHANCED_CHAT_GOAL_DETECTION_THRESHOLD", 0.7),
+    "phase_detection_confidence": _get_env_float("ENHANCED_CHAT_PHASE_DETECTION_CONFIDENCE", 0.6),
+    "max_conversation_history_length": _get_env_int("ENHANCED_CHAT_MAX_CONVERSATION_HISTORY_LENGTH", 50)
 }
 
 # Multi-Turn Strategy Configuration
 MULTI_TURN_STRATEGY_CONFIG = {
-    "enable_condensed_queries": True,
-    "enable_summary_queries": True,
-    "enable_goal_oriented_queries": True,
-    "enable_phase_specific_queries": True,
-    "enable_entity_tracking": True,
-    "enable_topic_tracking": True,
-    "condensed_query_max_turns": 5,
-    "summary_query_max_turns": 5
+    "enable_condensed_queries": _get_env_bool("ENHANCED_CHAT_ENABLE_CONDENSED_QUERIES", True),
+    "enable_summary_queries": _get_env_bool("ENHANCED_CHAT_ENABLE_SUMMARY_QUERIES", True),
+    "enable_goal_oriented_queries": _get_env_bool("ENHANCED_CHAT_ENABLE_GOAL_ORIENTED_QUERIES", True),
+    "enable_phase_specific_queries": _get_env_bool("ENHANCED_CHAT_ENABLE_PHASE_SPECIFIC_QUERIES", True),
+    "enable_entity_tracking": _get_env_bool("ENHANCED_CHAT_ENABLE_ENTITY_TRACKING", True),
+    "enable_topic_tracking": _get_env_bool("ENHANCED_CHAT_ENABLE_TOPIC_TRACKING", True),
+    "condensed_query_max_turns": _get_env_int("ENHANCED_CHAT_CONDENSED_MAX_TURNS", 5),
+    "summary_query_max_turns": _get_env_int("ENHANCED_CHAT_SUMMARY_MAX_TURNS", 5)
+}
+
+# Context Window Configuration
+CONTEXT_WINDOW_CONFIG = {
+    "context_window_multiplier": _get_env_int("ENHANCED_CHAT_CONTEXT_WINDOW_MULTIPLIER", 2),
+    "short_message_multiplier": _get_env_int("ENHANCED_CHAT_SHORT_MSG_MULTIPLIER", 3),
+    "max_context_window_size": _get_env_int("ENHANCED_CHAT_MAX_CONTEXT_WINDOW_SIZE", 50)
 }
 
 # Entity Extraction Configuration
 ENTITY_EXTRACTION_CONFIG = {
-    "min_entity_length": 3,
-    "max_entities_per_message": 5,
+    "min_entity_length": _get_env_int("ENHANCED_CHAT_MIN_ENTITY_LENGTH", 3),
+    "max_entities_per_message": _get_env_int("ENHANCED_CHAT_MAX_ENTITIES_PER_MESSAGE", 5),
     "entity_keywords": [
         "api", "rag", "llm", "ai", "ml", "brd", "basel", "sme",
         "compliance", "risk", "policy", "document", "requirement"
     ],
-    "enable_capitalized_entities": True,
-    "enable_keyword_entities": True
+    "enable_capitalized_entities": _get_env_bool("ENHANCED_CHAT_ENABLE_CAPITALIZED_ENTITIES", True),
+    "enable_keyword_entities": _get_env_bool("ENHANCED_CHAT_ENABLE_KEYWORD_ENTITIES", True)
 }
 
 # Topic Extraction Configuration
 TOPIC_EXTRACTION_CONFIG = {
-    "min_topic_length": 4,
-    "max_topics_per_message": 3,
+    "min_topic_length": _get_env_int("ENHANCED_CHAT_MIN_TOPIC_LENGTH", 4),
+    "max_topics_per_message": _get_env_int("ENHANCED_CHAT_MAX_TOPICS_PER_MESSAGE", 3),
     "topic_keywords": [
         "compliance", "risk", "policy", "document", "requirement",
         "implementation", "migration", "assessment", "analysis",
@@ -70,8 +109,8 @@ GOAL_DETECTION_CONFIG = {
         "prepare", "create", "develop", "implement", "achieve",
         "complete", "finish", "build", "design", "plan"
     ],
-    "goal_phrase_max_length": 100,
-    "goal_detection_confidence": 0.7
+    "goal_phrase_max_length": _get_env_int("ENHANCED_CHAT_GOAL_PHRASE_MAX_LENGTH", 100),
+    "goal_detection_confidence": _get_env_float("ENHANCED_CHAT_GOAL_DETECTION_CONFIDENCE", 0.7)
 }
 
 # Phase Detection Configuration

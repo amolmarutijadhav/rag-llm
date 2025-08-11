@@ -183,10 +183,16 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         # Get conversation state
         conversation_state = context.get("conversation_state", ConversationState())
         
+        # Get configuration values
+        from app.core.enhanced_chat_config import MULTI_TURN_STRATEGY_CONFIG
+        
+        condensed_max_turns = MULTI_TURN_STRATEGY_CONFIG["condensed_query_max_turns"]
+        summary_max_turns = MULTI_TURN_STRATEGY_CONFIG["summary_query_max_turns"]
+        
         # Generate condensed standalone query
         if context.get("messages"):
             condensed_query = self._condense_to_standalone_question(
-                context["messages"], max_turns=5
+                context["messages"], max_turns=condensed_max_turns
             )
             if condensed_query and condensed_query != question:
                 queries.append(condensed_query)
@@ -194,7 +200,7 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         # Generate summary query
         if context.get("messages"):
             summary_query = self._summarize_recent_context(
-                context["messages"], max_turns=5
+                context["messages"], max_turns=summary_max_turns
             )
             if summary_query:
                 queries.append(summary_query)
@@ -239,10 +245,15 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         
         return final_queries
     
-    def _condense_to_standalone_question(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
+    def _condense_to_standalone_question(self, messages: List[ChatMessage], max_turns: int = None) -> str:
         """Generate a standalone question from recent conversation turns with enhanced short message support"""
         if len(messages) < 2:
             return ""
+        
+        # Use configuration default if max_turns is not provided
+        if max_turns is None:
+            from app.core.enhanced_chat_config import MULTI_TURN_STRATEGY_CONFIG
+            max_turns = MULTI_TURN_STRATEGY_CONFIG["condensed_query_max_turns"]
         
         # Get recent turns (last max_turns * 2 to account for user/assistant pairs)
         recent_messages = messages[-max_turns * 2:]
@@ -440,10 +451,15 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         
         return clues
     
-    def _summarize_recent_context(self, messages: List[ChatMessage], max_turns: int = 5) -> str:
+    def _summarize_recent_context(self, messages: List[ChatMessage], max_turns: int = None) -> str:
         """Generate a summary query from recent conversation context with enhanced short message support"""
         if len(messages) < 2:
             return ""
+        
+        # Use configuration default if max_turns is not provided
+        if max_turns is None:
+            from app.core.enhanced_chat_config import MULTI_TURN_STRATEGY_CONFIG
+            max_turns = MULTI_TURN_STRATEGY_CONFIG["summary_query_max_turns"]
         
         # Use adaptive context window based on message complexity
         context_window = self._calculate_adaptive_context_window(messages, max_turns)
@@ -488,8 +504,15 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
     
     def _calculate_adaptive_context_window(self, messages: List[ChatMessage], max_turns: int) -> int:
         """Calculate adaptive context window based on message complexity"""
+        from app.core.enhanced_chat_config import CONTEXT_WINDOW_CONFIG
+        
         if len(messages) < 4:
             return len(messages)
+        
+        # Get configuration values
+        context_window_multiplier = CONTEXT_WINDOW_CONFIG["context_window_multiplier"]
+        short_message_multiplier = CONTEXT_WINDOW_CONFIG["short_message_multiplier"]
+        max_context_window_size = CONTEXT_WINDOW_CONFIG["max_context_window_size"]
         
         # Check if the last message is short
         last_message = messages[-1].content if messages else ""
@@ -497,10 +520,10 @@ class MultiTurnConversationStrategy(ConversationAnalysisStrategy):
         
         if is_short_message:
             # Use larger context window for short messages
-            return min(max_turns * 3, len(messages))
+            return min(max_turns * short_message_multiplier, len(messages), max_context_window_size)
         else:
             # Use standard context window for longer messages
-            return max_turns * 2
+            return min(max_turns * context_window_multiplier, len(messages), max_context_window_size)
     
     def _analyze_conversation_state(self, messages: List[ChatMessage]) -> ConversationState:
         """Analyze conversation to determine state, goals, and progress with enhanced short message support"""
