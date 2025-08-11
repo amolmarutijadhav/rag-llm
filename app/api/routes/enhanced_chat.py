@@ -52,6 +52,23 @@ async def enhanced_chat_completions(http_request: Request, request: ChatCompleti
         except Exception:
             # Soft-fail: do not block if client info unavailable
             pass
+        
+        # Simple cleanup: remove blank messages
+        original_count = len(request.messages)
+        request.messages = [msg for msg in request.messages if msg.content and msg.content.strip()]
+        removed_count = original_count - len(request.messages)
+        
+        if removed_count > 0:
+            logger.info(
+                "Removed blank messages during cleanup",
+                extra=log_extra(
+                    'message_cleanup_performed',
+                    original_count=original_count,
+                    cleaned_count=len(request.messages),
+                    removed_count=removed_count
+                )
+            )
+        
         # Validate request
         if not request.messages or len(request.messages) == 0:
             logger.warning(
